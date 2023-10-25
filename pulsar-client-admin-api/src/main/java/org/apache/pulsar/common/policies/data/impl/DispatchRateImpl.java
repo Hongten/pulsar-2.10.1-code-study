@@ -42,9 +42,16 @@ public final class DispatchRateImpl implements DispatchRate {
 
     public static class DispatchRateImplBuilder implements DispatchRate.Builder {
 
+        // todo 消费msg个数控制
         private int dispatchThrottlingRateInMsg = -1;
+        // todo 消费msg大小限制
         private long dispatchThrottlingRateInByte = -1;
+        // todo 这个值默认为FALSE，如果设置为TRUE，则它会动态更新消费速率。
+        //  可以理解为当生产速率增加的时候，那么动态调整消费速率来保障消费job的速率，避免消费不及的消息积压问题.
+        //  但是需要指出的是，这样设置会给pulsar集群带来危险，可能把集群打卦，失去了消费端限流的意义。
+        // todo throttle-dispatch-rate = (publish-rate + configured dispatch-rate)
         private boolean relativeToPublishRate = false; /* throttles dispatch relatively publish-rate */
+        // todo 时长设置，默认为1s
         private int ratePeriodInSecond = 1; /* by default dispatch-rate will be calculate per 1 second */
 
 

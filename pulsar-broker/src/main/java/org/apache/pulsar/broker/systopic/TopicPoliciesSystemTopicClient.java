@@ -113,6 +113,7 @@ public class TopicPoliciesSystemTopicClient extends SystemTopicClientBase<Pulsar
         }
 
         private String getEventKey(PulsarEvent event) {
+            // TODO: 1/19/23 key=full topic name
             return TopicName.get(event.getTopicPoliciesEvent().getDomain(),
                 event.getTopicPoliciesEvent().getTenant(),
                 event.getTopicPoliciesEvent().getNamespace(),

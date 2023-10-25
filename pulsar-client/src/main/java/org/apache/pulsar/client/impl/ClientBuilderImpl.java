@@ -38,6 +38,7 @@ import org.apache.pulsar.client.impl.conf.ClientConfigurationData;
 import org.apache.pulsar.client.impl.conf.ConfigurationDataUtils;
 
 public class ClientBuilderImpl implements ClientBuilder {
+    // TODO: 10/23/23 pulsar客户端配置
     ClientConfigurationData conf;
 
     public ClientBuilderImpl() {
@@ -50,6 +51,7 @@ public class ClientBuilderImpl implements ClientBuilder {
 
     @Override
     public PulsarClient build() throws PulsarClientException {
+        // todo 判断serviceUrl 和 serviceUrlProvider
         if (StringUtils.isBlank(conf.getServiceUrl()) && conf.getServiceUrlProvider() == null) {
             throw new IllegalArgumentException(
                     "service URL or service URL provider needs to be specified on the ClientBuilder object.");

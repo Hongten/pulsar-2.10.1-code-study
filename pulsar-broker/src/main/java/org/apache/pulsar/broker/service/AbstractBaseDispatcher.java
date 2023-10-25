@@ -65,6 +65,7 @@ public abstract class AbstractBaseDispatcher implements Dispatcher {
     protected AbstractBaseDispatcher(Subscription subscription, ServiceConfiguration serviceConfig) {
         this.subscription = subscription;
         this.serviceConfig = serviceConfig;
+        // TODO: 2/22/23  dispatchThrottlingOnBatchMessageEnabled=false
         this.dispatchThrottlingOnBatchMessageEnabled = serviceConfig.isDispatchThrottlingOnBatchMessageEnabled();
         if (subscription != null && subscription.getTopic() != null && MapUtils.isNotEmpty(subscription.getTopic()
                 .getBrokerService().getEntryFilters())) {
@@ -303,18 +304,23 @@ public abstract class AbstractBaseDispatcher implements Dispatcher {
         // noop
     }
 
+    // TODO: 2/22/23 如果达到了消费限流quota，则进行reSchedule read
     protected abstract void reScheduleRead();
 
     protected boolean reachDispatchRateLimit(DispatchRateLimiter dispatchRateLimiter) {
+        // TODO: 2/22/23 两个task 至少一个不为null
         if (dispatchRateLimiter.isDispatchRateLimitingEnabled()) {
+            // TODO: 2/22/23 是否还有可用的permit ，如果超过quota，则reSchedule
             if (!dispatchRateLimiter.hasMessageDispatchPermit()) {
                 reScheduleRead();
+                // TODO: 2/22/23 超过quota了
                 return true;
             }
         }
         return false;
     }
 
+    // TODO: 2/22/23 根据limiter计算出可以消费的消息，
     protected Pair<Integer, Long> updateMessagesToRead(DispatchRateLimiter dispatchRateLimiter,
                                                        int messagesToRead, long bytesToRead) {
         // update messagesToRead according to available dispatch rate limit.
@@ -325,6 +331,7 @@ public abstract class AbstractBaseDispatcher implements Dispatcher {
 
     protected static Pair<Integer, Long> computeReadLimits(int messagesToRead, int availablePermitsOnMsg,
                                                            long bytesToRead, long availablePermitsOnByte) {
+        // TODO: 2/22/23 可用的permit 和 需要读取的消息，取最小值，目的是不能超quota
         if (availablePermitsOnMsg > 0) {
             messagesToRead = Math.min(messagesToRead, availablePermitsOnMsg);
         }

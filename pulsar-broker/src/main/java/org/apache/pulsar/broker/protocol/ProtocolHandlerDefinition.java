@@ -21,6 +21,13 @@ package org.apache.pulsar.broker.protocol;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+// TODO: 2/15/23 协议里面的yml文件内容
+/**
+ * name: kafka
+ * description: Kafka Protocol Handler
+ * handlerClass: io.streamnative.pulsar.handlers.kop.KafkaProtocolHandler
+ */
+
 /**
  * Metadata information about a Pulsar protocol handler.
  */

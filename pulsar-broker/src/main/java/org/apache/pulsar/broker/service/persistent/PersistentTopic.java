@@ -183,6 +183,7 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
     // topic has every published chunked message since topic is loaded
     public boolean msgChunkPublished;
 
+    // todo dispatch rate limiter
     private Optional<DispatchRateLimiter> dispatchRateLimiter = Optional.empty();
     private final Object dispatchRateLimiterLock = new Object();
     private Optional<SubscribeRateLimiter> subscribeRateLimiter = Optional.empty();
@@ -319,6 +320,7 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
                     if (!optPolicies.isPresent()) {
                         isEncryptionRequired = false;
                         updatePublishDispatcher();
+                        // TODO: 2/15/23 这里进行updateRGlimiter
                         updateResourceGroupLimiter(optPolicies);
                         return;
                     }
@@ -329,6 +331,7 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
 
                     updatePublishDispatcher();
 
+                    // TODO: 2/15/23 这里进行updateRGlimiter
                     updateResourceGroupLimiter(optPolicies);
 
                     this.isEncryptionRequired = policies.encryption_required;
@@ -373,9 +376,11 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
 
     private void initializeRateLimiterIfNeeded(Optional<Policies> policies) {
         synchronized (dispatchRateLimiterLock) {
+            // todo 初始化dispatch rate limiter
             // dispatch rate limiter for topic
             if (!dispatchRateLimiter.isPresent() && DispatchRateLimiter
                     .isDispatchRateNeeded(brokerService, policies, topic, Type.TOPIC)) {
+                // todo 设置为topic 类型
                 this.dispatchRateLimiter = Optional.of(new DispatchRateLimiter(this, Type.TOPIC));
             }
             boolean isDispatchRateNeeded = SubscribeRateLimiter.isDispatchRateNeeded(brokerService, policies, topic);
@@ -409,6 +414,7 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
         }
     }
 
+    // TODO: 2/15/23 发送消息到topic
     @Override
     public void publishMessage(ByteBuf headersAndPayload, PublishContext publishContext) {
         pendingWriteOps.incrementAndGet();
@@ -417,6 +423,7 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
             decrementPendingWriteOpsAndCheck();
             return;
         }
+        // TODO: 2/24/23 判断是否超过了maxMessageSize=5MB
         if (isExceedMaximumMessageSize(headersAndPayload.readableBytes(), publishContext)) {
             publishContext.completed(new NotAllowedException("Exceed maximum message size")
                     , -1, -1);
@@ -424,24 +431,26 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
             return;
         }
 
+        // TODO: 2/24/23 检查消息是否为重复消息
         MessageDeduplication.MessageDupStatus status =
                 messageDeduplication.isDuplicate(publishContext, headersAndPayload);
         switch (status) {
-            case NotDup:
+            case NotDup: // TODO: 2/24/23 没有重复，说明可以发送
                 asyncAddEntry(headersAndPayload, publishContext);
                 break;
-            case Dup:
+            case Dup: // TODO: 2/24/23 重复消息
                 // Immediately acknowledge duplicated message
                 publishContext.completed(null, -1, -1);
                 decrementPendingWriteOpsAndCheck();
                 break;
-            default:
+            default: // TODO: 2/24/23 Unknown 消息
                 publishContext.completed(new MessageDeduplication.MessageDupUnknownException(), -1, -1);
                 decrementPendingWriteOpsAndCheck();
 
         }
     }
 
+    // TODO: 2/24/23 把数据添加到Ledger
     private void asyncAddEntry(ByteBuf headersAndPayload, PublishContext publishContext) {
         if (brokerService.isBrokerEntryMetadataEnabled()) {
             ledger.asyncAddEntry(headersAndPayload,
@@ -1268,6 +1277,7 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
             topicPublishRateLimiter.close();
         }
         subscriptions.forEach((s, sub) -> futures.add(sub.disconnect()));
+        // TODO: 2/15/23 当RG 发送限制器不为空的时候，需要把注册的func移除
         if (this.resourceGroupPublishLimiter != null) {
             this.resourceGroupPublishLimiter.unregisterRateLimitFunction(this.getName());
         }
@@ -1286,6 +1296,7 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
                             .thenRun(() -> {
                                 replicatedSubscriptionsController.ifPresent(ReplicatedSubscriptionsController::close);
 
+                                //todo 关闭 dispatch rate limiter
                                 dispatchRateLimiter.ifPresent(DispatchRateLimiter::close);
 
                                 subscribeRateLimiter.ifPresent(SubscribeRateLimiter::close);
@@ -1413,8 +1424,10 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
 
     @Override
     public void checkMessageExpiry() {
+        // todo 获取设置的TTL值 topic > namespace > broker
         int messageTtlInSeconds = topicPolicies.getMessageTTLInSeconds().get();
         if (messageTtlInSeconds != 0) {
+            // todo 检查所有的订阅是否超过了TTL限时
             subscriptions.forEach((__, sub) -> sub.expireMessages(messageTtlInSeconds));
             replicators.forEach((__, replicator)
                     -> ((PersistentReplicator) replicator).expireMessages(messageTtlInSeconds));
@@ -2392,6 +2405,7 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
 
         updatePublishDispatcher();
 
+        // TODO: 2/15/23 这里进行updateRGlimiter
         this.updateResourceGroupLimiter(Optional.of(data));
 
         List<CompletableFuture<Void>> producerCheckFutures = new ArrayList<>(producers.size());
@@ -2423,6 +2437,7 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
                 CompletableFuture<Void> replicationFuture = checkReplicationAndRetryOnFailure();
                 CompletableFuture<Void> dedupFuture = checkDeduplicationStatus();
                 CompletableFuture<Void> persistentPoliciesFuture = checkPersistencePolicies();
+                // todo 更新dispatch rate limiter
                 // update rate-limiter if policies updated
                 if (this.dispatchRateLimiter.isPresent()) {
                     if (!topicPolicies.isPresent() || !topicPolicies.get().isDispatchRateSet()) {
@@ -2457,6 +2472,7 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
      */
     @Override
     public CompletableFuture<Void> checkBacklogQuotaExceeded(String producerName, BacklogQuotaType backlogQuotaType) {
+        // TODO: 2/23/23 查看是否超过了backlog quota
         BacklogQuota backlogQuota = getBacklogQuota(backlogQuotaType);
         if (backlogQuota != null) {
             BacklogQuota.RetentionPolicy retentionPolicy = backlogQuota.getPolicy();
@@ -3047,6 +3063,7 @@ public class PersistentTopic extends AbstractTopic implements Topic, AddEntryCal
         }
         updateTopicPolicy(policies);
 
+        // todo namespacePolicies 没有用到？
         Optional<Policies> namespacePolicies = getNamespacePolicies();
         initializeTopicDispatchRateLimiterIfNeeded(policies);
 

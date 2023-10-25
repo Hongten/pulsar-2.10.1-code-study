@@ -48,6 +48,7 @@ import org.apache.pulsar.client.util.Secret;
 public class ClientConfigurationData implements Serializable, Cloneable {
     private static final long serialVersionUID = 1L;
 
+    // todo serviceUrl, e.g pulsar://broker:6650"
     @ApiModelProperty(
             name = "serviceUrl",
             value = "Pulsar cluster HTTP URL to connect to a broker."
@@ -60,6 +61,7 @@ public class ClientConfigurationData implements Serializable, Cloneable {
     @JsonIgnore
     private transient ServiceUrlProvider serviceUrlProvider;
 
+    // todo 权限相关
     @ApiModelProperty(
             name = "authentication",
             value = "Authentication settings of the client."
@@ -87,36 +89,42 @@ public class ClientConfigurationData implements Serializable, Cloneable {
     @Secret
     private Map<String, String> authParamMap;
 
+    // todo 客户端超时时间，默认为30s
     @ApiModelProperty(
             name = "operationTimeoutMs",
             value = "Client operation timeout (in milliseconds)."
     )
     private long operationTimeoutMs = 30000;
 
+    // todo lookup timeout, 默认为-1， 应该是无限，最终应该是上面的时间先超时 30s
     @ApiModelProperty(
             name = "lookupTimeoutMs",
             value = "Client lookup timeout (in milliseconds)."
     )
     private long lookupTimeoutMs = -1;
 
+    // todo 多久打印一下数据，比如消费者的消费速度、字节数、消费者总共接收了多少消息等
     @ApiModelProperty(
             name = "statsIntervalSeconds",
             value = "Interval to print client stats (in seconds)."
     )
     private long statsIntervalSeconds = 60;
 
+    // todo IO线程数，默认为1
     @ApiModelProperty(
             name = "numIoThreads",
             value = "Number of IO threads."
     )
     private int numIoThreads = 1;
 
+    // todo 消费者线程数
     @ApiModelProperty(
             name = "numListenerThreads",
             value = "Number of consumer listener threads."
     )
     private int numListenerThreads = 1;
 
+    // todo 创建连接池使用，默认为1，即连接数为1
     @ApiModelProperty(
             name = "connectionsPerBroker",
             value = "Number of connections established between the client and each Broker."
@@ -124,12 +132,14 @@ public class ClientConfigurationData implements Serializable, Cloneable {
     )
     private int connectionsPerBroker = 1;
 
+    // todo tcp nagle算法
     @ApiModelProperty(
             name = "useTcpNoDelay",
             value = "Whether to use TCP NoDelay option."
     )
     private boolean useTcpNoDelay = true;
 
+    // todo TLS协议相关
     @ApiModelProperty(
             name = "useTls",
             value = "Whether to use TLS."
@@ -153,6 +163,7 @@ public class ClientConfigurationData implements Serializable, Cloneable {
             value = "Whether the hostname is validated when the proxy creates a TLS connection with brokers."
     )
     private boolean tlsHostnameVerificationEnable = false;
+    // todo 用于创建Semaphore，控制客户端向服务端请求速率 例如查询topic属于哪个broker，查询分区数
     @ApiModelProperty(
             name = "concurrentLookupRequest",
             value = "The number of concurrent lookup requests that can be sent on each broker connection. "
@@ -167,12 +178,14 @@ public class ClientConfigurationData implements Serializable, Cloneable {
     )
     private int maxLookupRequest = 50000;
 
+    // todo 重定向次数 查询topic属于哪个broker时随机选个broker看看是否存在，不存在定向到其他broker
     @ApiModelProperty(
             name = "maxLookupRedirects",
             value = "Maximum times of redirected lookup requests."
     )
     private int maxLookupRedirects = 20;
 
+    // todo 当前请求过多，对服务端造成限流，会拒绝客户端请求 场景：还是查询topic属于哪个broker和查询分区数
     @ApiModelProperty(
             name = "maxNumberOfRejectedRequestPerConnection",
             value = "Maximum number of rejected requests of a broker in a certain time frame (30 seconds) "
@@ -181,36 +194,43 @@ public class ClientConfigurationData implements Serializable, Cloneable {
     )
     private int maxNumberOfRejectedRequestPerConnection = 50;
 
+    // todo channel建立后，创建一个定时心跳任务保活channel，该参数是多久发一次心跳请求
     @ApiModelProperty(
             name = "keepAliveIntervalSeconds",
             value = "Seconds of keeping alive interval for each client broker connection."
     )
     private int keepAliveIntervalSeconds = 30;
 
+    // todo 客户端与服务端的连接超时时间, 10s
     @ApiModelProperty(
             name = "connectionTimeoutMs",
             value = "Duration of waiting for a connection to a broker to be established."
                     + "If the duration passes without a response from a broker, the connection attempt is dropped."
     )
     private int connectionTimeoutMs = 10000;
+    // todo pulsar有admin web接口，该参数是http请求的超时时间
     @ApiModelProperty(
             name = "requestTimeoutMs",
             value = "Maximum duration for completing a request."
     )
     private int requestTimeoutMs = 60000;
 
+    // todo 退避初始时间 例如：连接服务端失败了，是不是要重试，那过多久重试呢，重试后又失败了，再过多久重试呢，比如初始1秒，
+    //  再失败通过一套计算方式，得出下次重试3秒后，再失败10秒后 就是干这个用的
     @ApiModelProperty(
             name = "initialBackoffIntervalNanos",
             value = "Initial backoff interval (in nanosecond)."
     )
     private long initialBackoffIntervalNanos = TimeUnit.MILLISECONDS.toNanos(100);
 
+    // todo 接上面：不能一直重试，因为越来越久，总得有个封顶然后再从初识或某个点开始 这个就是封顶值
     @ApiModelProperty(
             name = "maxBackoffIntervalNanos",
             value = "Max backoff interval (in nanosecond)."
     )
     private long maxBackoffIntervalNanos = TimeUnit.SECONDS.toNanos(60);
 
+    // todo EpollEventLoop调用select时的等待策略
     @ApiModelProperty(
             name = "enableBusyWait",
             value = "Whether to enable BusyWait for EpollEventLoopGroup."
@@ -269,6 +289,8 @@ public class ClientConfigurationData implements Serializable, Cloneable {
     )
     private Set<String> tlsProtocols = new TreeSet<>();
 
+    // todo 发送消息后，再没有收到服务端回调数据还在内存中。用于控制同一时刻内存中存在的消息大小限制
+    // todo kafka侧则为32M
     @ApiModelProperty(
             name = "memoryLimitBytes",
             value = "Limit of client memory usage (in byte). The 64M default can guarantee a high producer throughput."
@@ -287,6 +309,7 @@ public class ClientConfigurationData implements Serializable, Cloneable {
     )
     private ProxyProtocol proxyProtocol;
 
+    // todo 是否开启事务
     @ApiModelProperty(
             name = "enableTransaction",
             value = "Whether to enable transaction."
@@ -356,6 +379,7 @@ public class ClientConfigurationData implements Serializable, Cloneable {
         if (lookupTimeoutMs >= 0) {
             return lookupTimeoutMs;
         } else {
+            // TODO: 10/23/23 默认为30s
             return operationTimeoutMs;
         }
     }

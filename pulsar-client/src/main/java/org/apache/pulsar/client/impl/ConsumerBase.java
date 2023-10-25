@@ -64,6 +64,8 @@ import org.apache.pulsar.common.util.collections.GrowableArrayBlockingQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// TODO: 2/22/23 消费抽象类，实现了一些通用的接口，receive, batchReceive, acknowledge, reconsumeLater,
+//  这些接口的通过逻辑都已经实现，一些无法统一的行为就作为抽象方法等待子类去实现，模板模式
 public abstract class ConsumerBase<T> extends HandlerState implements Consumer<T> {
 
     protected final String subscription;

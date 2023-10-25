@@ -255,6 +255,7 @@ public class ModularLoadManagerImpl implements ModularLoadManager {
             brokerHostUsage = new GenericBrokerHostUsageImpl(pulsar);
         }
 
+        // TODO: 2/7/23 bundler分裂 task创建
         bundleSplitStrategy = new BundleSplitterTask();
 
         conf = pulsar.getConfiguration();
@@ -707,6 +708,7 @@ public class ModularLoadManagerImpl implements ModularLoadManager {
         }
         final boolean unloadSplitBundles = pulsar.getConfiguration().isLoadBalancerAutoUnloadSplitBundlesEnabled();
         synchronized (bundleSplitStrategy) {
+            // TODO: 2/7/23 获取到需要被分裂的bundle集合
             final Set<String> bundlesToBeSplit = bundleSplitStrategy.findBundlesToSplit(loadData, pulsar);
             NamespaceBundleFactory namespaceBundleFactory = pulsar.getNamespaceService().getNamespaceBundleFactory();
             for (String bundleName : bundlesToBeSplit) {
@@ -726,6 +728,7 @@ public class ModularLoadManagerImpl implements ModularLoadManager {
                             .invalidateBundleCache(NamespaceName.get(namespaceName));
                     deleteBundleDataFromMetadataStore(bundleName);
 
+                    // TODO: 2/7/23 分裂bundle
                     log.info("Load-manager splitting bundle {} and unloading {}", bundleName, unloadSplitBundles);
                     pulsar.getAdminClient().namespaces().splitNamespaceBundle(namespaceName, bundleRange,
                         unloadSplitBundles, null);

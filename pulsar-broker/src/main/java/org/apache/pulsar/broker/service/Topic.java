@@ -208,8 +208,10 @@ public interface Topic {
 
     boolean isTopicPublishRateExceeded(int msgSize, int numMessages);
 
+    // TODO: 2/15/23 是否启用了RG限流标识
     boolean isResourceGroupRateLimitingEnabled();
 
+    // TODO: 2/15/23 是否超过了RG的Publish的限流 ，这里只提供了Publish，应该还有一个Dispatch
     boolean isResourceGroupPublishRateExceeded(int msgSize, int numMessages);
 
     boolean isBrokerPublishRateExceeded();

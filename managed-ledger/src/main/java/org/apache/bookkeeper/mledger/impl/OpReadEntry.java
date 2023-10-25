@@ -45,6 +45,7 @@ class OpReadEntry implements ReadEntriesCallback {
     private PositionImpl nextReadPosition;
     PositionImpl maxPosition;
 
+    // TODO: 2/22/23 构建OpReadEntry对象
     public static OpReadEntry create(ManagedCursorImpl cursor, PositionImpl readPositionRef, int count,
             ReadEntriesCallback callback, Object ctx, PositionImpl maxPosition) {
         OpReadEntry op = RECYCLER.get();

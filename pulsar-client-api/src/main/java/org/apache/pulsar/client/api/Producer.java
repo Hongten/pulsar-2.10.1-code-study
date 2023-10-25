@@ -24,6 +24,7 @@ import org.apache.pulsar.client.api.transaction.Transaction;
 import org.apache.pulsar.common.classification.InterfaceAudience;
 import org.apache.pulsar.common.classification.InterfaceStability;
 
+// TODO: 2/23/23 主要是逻辑的接口，定义send，flush， newMessage等方法
 /**
  * Producer is used to publish messages on a topic.
  *
@@ -78,6 +79,7 @@ public interface Producer<T> extends Closeable {
     CompletableFuture<MessageId> sendAsync(T message);
 
     /**
+     * 刷新客户端的消息缓存并阻塞，直到所有消息成功保存。
      * Flush all the messages buffered in the client and wait until all messages have been successfully persisted.
      *
      * @throws PulsarClientException
@@ -96,6 +98,7 @@ public interface Producer<T> extends Closeable {
     CompletableFuture<Void> flushAsync();
 
     /**
+     * 创建一个新消息构造器
      * Create a new message builder.
      *
      * <p>This message builder allows to specify additional properties on the message. For example:
@@ -133,6 +136,7 @@ public interface Producer<T> extends Closeable {
      */
     TypedMessageBuilder<T> newMessage(Transaction txn);
     /**
+     * 获取生产者最后一个序列ID
      * Get the last sequence id that was published by this producer.
      *
      * <p>This represent either the automatically assigned
@@ -147,6 +151,7 @@ public interface Producer<T> extends Closeable {
     long getLastSequenceId();
 
     /**
+     * 获取生产者状态
      * Get statistics for the producer.
      * <ul>
      * <li>numMsgsSent : Number of messages sent in the current interval
@@ -186,6 +191,7 @@ public interface Producer<T> extends Closeable {
     CompletableFuture<Void> closeAsync();
 
     /**
+     * 判断生产者是否已连接上broker
      * @return Whether the producer is currently connected to the broker
      */
     boolean isConnected();
@@ -196,6 +202,7 @@ public interface Producer<T> extends Closeable {
     long getLastDisconnectedTimestamp();
 
     /**
+     * 获取每个topic的partition数目
      * @return the number of partitions per topic.
      */
     int getNumOfPartitions();

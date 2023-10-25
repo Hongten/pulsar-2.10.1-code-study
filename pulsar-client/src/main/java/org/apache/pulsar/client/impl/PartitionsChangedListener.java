@@ -20,7 +20,7 @@ package org.apache.pulsar.client.impl;
 
 import java.util.Collection;
 import java.util.concurrent.CompletableFuture;
-
+// TODO: 10/23/23 分区变更监听器接口
 /**
  * Listener that notified when concerned topic partitions changed.
  */

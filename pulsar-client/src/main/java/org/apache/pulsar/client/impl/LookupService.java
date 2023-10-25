@@ -44,11 +44,16 @@ import org.apache.pulsar.common.schema.SchemaInfo;
 public interface LookupService extends AutoCloseable {
 
     /**
+     * 用于动态更新serviceUrl
      * Instruct the LookupService to switch to a new service URL for all subsequent requests.
      */
     void updateServiceUrl(String serviceUrl) throws PulsarClientException;
 
     /**
+     * 根据Topic来获取活的broker地址
+     * 通过查找服务中 getBroker 方法获取存活的 broker 地址，有两种实现，一个是 Http 协议实现，
+     * 一个是 Native（TCP）实现，这里只取一个实现分析，TCP实现的：BinaryProtoLookupService 类
+     *
      * Calls broker lookup-api to get broker {@link InetSocketAddress} which serves namespace bundle that contains given
      * topic.
      *
@@ -59,6 +64,7 @@ public interface LookupService extends AutoCloseable {
     CompletableFuture<Pair<InetSocketAddress, InetSocketAddress>> getBroker(TopicName topicName);
 
     /**
+     * 根据Topic获取Topic分区信息
      * Returns {@link PartitionedTopicMetadata} for a given topic.
      *
      * @param topicName topic-name
@@ -67,6 +73,7 @@ public interface LookupService extends AutoCloseable {
     CompletableFuture<PartitionedTopicMetadata> getPartitionedTopicMetadata(TopicName topicName);
 
     /**
+     * 根据Topic获取Schema信息
      * Returns current SchemaInfo {@link SchemaInfo} for a given topic.
      *
      * @param topicName topic-name
@@ -84,6 +91,7 @@ public interface LookupService extends AutoCloseable {
     CompletableFuture<Optional<SchemaInfo>> getSchema(TopicName topicName, byte[] version);
 
     /**
+     * 获取serviceUrl
      * Returns broker-service lookup api url.
      *
      * @return
@@ -91,6 +99,7 @@ public interface LookupService extends AutoCloseable {
     String getServiceUrl();
 
     /**
+     * 获取Namespace下所有的topic
      * Returns all the topics name for a given namespace.
      *
      * @param namespace : namespace-name

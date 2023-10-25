@@ -222,7 +222,7 @@ public class TopicLookupBase extends PulsarWebResource {
                                                               boolean authoritative, String clientAppId,
                                                               AuthenticationDataSource authenticationData,
                                                               long requestId, final String advertisedListenerName) {
-
+        // TODO: 2/23/23 这个方法里面的逻辑很明了
         final CompletableFuture<ByteBuf> validationFuture = new CompletableFuture<>();
         final CompletableFuture<ByteBuf> lookupfuture = new CompletableFuture<>();
         final String cluster = topicName.getCluster();

@@ -54,6 +54,7 @@ import org.apache.pulsar.metadata.bookkeeper.PulsarMetadataClientDriver;
 @Slf4j
 public class BookKeeperClientFactoryImpl implements BookKeeperClientFactory {
 
+    // TODO: 12/30/22 初始化bookie客户端
     @Override
     public BookKeeper create(ServiceConfiguration conf, MetadataStoreExtended store,
                              EventLoopGroup eventLoopGroup,
@@ -63,6 +64,7 @@ public class BookKeeperClientFactoryImpl implements BookKeeperClientFactory {
                 NullStatsLogger.INSTANCE);
     }
 
+    // TODO: 12/30/22 创建一个BookKeeper对象
     @Override
     public BookKeeper create(ServiceConfiguration conf, MetadataStoreExtended store,
                              EventLoopGroup eventLoopGroup,

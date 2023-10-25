@@ -32,6 +32,7 @@ import org.apache.pulsar.common.classification.InterfaceStability;
 public interface Message<T> {
 
     /**
+     * 获取消息属性集
      * Return the properties attached to the message.
      *
      * <p>Properties are application defined key/value pairs that will be attached to the message.
@@ -41,6 +42,7 @@ public interface Message<T> {
     Map<String, String> getProperties();
 
     /**
+     * 是否存在名叫name属性
      * Check whether the message has a specific property attached.
      *
      * @param name the name of the property to check
@@ -57,6 +59,7 @@ public interface Message<T> {
     String getProperty(String name);
 
     /**
+     * 获取消息原始负载字节数组
      * Get the raw payload of the message.
      *
      * <p>Even when using the Schema and type-safe API, an application
@@ -81,6 +84,7 @@ public interface Message<T> {
     T getValue();
 
     /**
+     * 获取这消息唯一消息ID
      * Get the unique message ID associated with this message.
      *
      * <p>The message id can be used to univocally refer to a message without having the keep
@@ -93,6 +97,7 @@ public interface Message<T> {
     MessageId getMessageId();
 
     /**
+     * 获取消息发送时间
      * Get the publish time of this message. The publish time is the timestamp that a client publish the message.
      *
      * @return publish time of this message.
@@ -101,6 +106,7 @@ public interface Message<T> {
     long getPublishTime();
 
     /**
+     * 获取与消息关联的世界时间，如果无事件关联，则返回0
      * Get the event time associated with this message. It is typically set by the applications via
      * {@link MessageBuilder#setEventTime(long)}.
      *
@@ -113,6 +119,7 @@ public interface Message<T> {
     long getEventTime();
 
     /**
+     * 获取与消息关联的序列号
      * Get the sequence id associated with this message. It is typically set by the applications via
      * {@link MessageBuilder#setSequenceId(long)}.
      *

@@ -27,6 +27,7 @@ import org.apache.pulsar.common.classification.InterfaceStability;
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public enum CompressionType {
+    // TODO: 10/18/23 这里和Kafka生产端的压缩类型有一些不同： kafka(2.7)支持的压缩类型为none, gzip, snappy, lz4, zstd
     /** No compression. */
     NONE,
 
@@ -34,7 +35,7 @@ public enum CompressionType {
     LZ4,
 
     /** Compress with ZLib. */
-    ZLIB,
+    ZLIB, //todo pulsar支持zlib， kafka支持gzip
 
     /** Compress with Zstandard codec. */
     ZSTD,

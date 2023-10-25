@@ -276,6 +276,7 @@ public class MessageImpl<T> implements Message<T> {
     }
 
     public static boolean isEntryExpired(int messageTTLInSeconds, long entryTimestamp) {
+        // todo messageTTLInSeconds != 0 并且 当前时间 > entry时间戳 + TTL
         return messageTTLInSeconds != 0
                 && (System.currentTimeMillis() > entryTimestamp + TimeUnit.SECONDS.toMillis(messageTTLInSeconds));
     }

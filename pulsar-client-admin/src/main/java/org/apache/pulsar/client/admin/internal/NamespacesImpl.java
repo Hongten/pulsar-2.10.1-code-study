@@ -1178,19 +1178,24 @@ public class NamespacesImpl extends BaseResource implements Namespaces {
     @Override
     public CompletableFuture<Void> removeDispatchRateAsync(String namespace) {
         NamespaceName ns = NamespaceName.get(namespace);
+        // todo 构建路径
         WebTarget path = namespacePath(ns, "dispatchRate");
         return asyncDeleteRequest(path);
     }
 
     @Override
     public void setDispatchRate(String namespace, DispatchRate dispatchRate) throws PulsarAdminException {
+        // todo 设置消费速率quota，在namespace上面设置 quota
         sync(() -> setDispatchRateAsync(namespace, dispatchRate));
     }
 
     @Override
     public CompletableFuture<Void> setDispatchRateAsync(String namespace, DispatchRate dispatchRate) {
+        // todo 获取namespace
         NamespaceName ns = NamespaceName.get(namespace);
+        // todo 对应的是zk上面的路径
         WebTarget path = namespacePath(ns, "dispatchRate");
+        // todo 以json的形式传递到zk
         return asyncPostRequest(path, Entity.entity(dispatchRate, MediaType.APPLICATION_JSON));
     }
 
@@ -2449,6 +2454,7 @@ public class NamespacesImpl extends BaseResource implements Namespaces {
 
     @Override
     public void setNamespaceResourceGroup(String namespace, String resourcegroupname) throws PulsarAdminException {
+        // todo 在命名空间上面设置一个resourcegroup
         sync(() -> setNamespaceResourceGroupAsync(namespace, resourcegroupname));
     }
 
@@ -2509,8 +2515,10 @@ public class NamespacesImpl extends BaseResource implements Namespaces {
     }
 
     private WebTarget namespacePath(NamespaceName namespace, String... parts) {
+        // todo V2检查，一般返回false.
         final WebTarget base = namespace.isV2() ? adminV2Namespaces : adminNamespaces;
         WebTarget namespacePath = base.path(namespace.toString());
+        // todo 把路径构建起来
         namespacePath = WebTargets.addParts(namespacePath, parts);
         return namespacePath;
     }

@@ -33,10 +33,12 @@ public class ResourceQuotaCalculatorImpl implements ResourceQuotaCalculator {
 
         long totalUsage = 0;
 
+        // todo 统计所有的使用量
         for (long usage : allUsages) {
             totalUsage += usage;
         }
 
+        // todo 这个代码可以移动到最前面
         if (confUsage < 0) {
             // This can happen if the RG is not configured with this particular limit (message or byte count) yet.
             val retVal = -1;
@@ -73,6 +75,9 @@ public class ResourceQuotaCalculatorImpl implements ResourceQuotaCalculator {
             log.warn(errMesg);
         }
 
+        // TODO: 2/10/23 剩余可用值。
+        //  如果我们配置的quota值超过了总流量，说明还有剩余。
+        //  如果我们配置的quota值小于总流量，说明超quota了，没有剩余流量
         // How much unused capacity is left over?
         float residual = confUsage - totalUsage;
 
@@ -81,9 +86,14 @@ public class ResourceQuotaCalculatorImpl implements ResourceQuotaCalculator {
         // configured usage, and reducing proportionately if the total usage is greater than the configured usage.
         // Capped to 1, to prevent negative or zero setting of quota.
         // the rate limiter code assumes that rate value of 0 or less to mean that no rate limit should be applied
+        // TODO: 2/10/23 计算当前流量和总流量的比值，根据比例调整接下来的流量变化。
+        //  e.g.如果某个Resourcegroup限制流量为100,某时刻有三个broker本别使用了10，50，30的流量。
+        //  第一阶段，后台会先计算出剩余流量配额为10，这时每个broker就会增加未使用的流量配额10，此时三个broker的流量分别为10， 60， 40.
+        //  第二阶段，后台计算后，总的使用流量120，已经超过了quota值100，这个时候，后台会按照比例对broker进行限制，最终三个broker的流量变为：11.11， 55.56， 33.33
         float myUsageFraction = (float) myUsage / totalUsage;
         float calculatedQuota = max(myUsage + residual * myUsageFraction, 1);
 
+        // TODO: 2/10/23 调整后的本地broker流量quota值
         val longCalculatedQuota = (long) calculatedQuota;
         log.info("computeLocalQuota: myUsage={}, totalUsage={}, myFraction={}; newQuota returned={} [long: {}]",
                 myUsage, totalUsage, myUsageFraction, calculatedQuota, longCalculatedQuota);
@@ -97,12 +107,14 @@ public class ResourceQuotaCalculatorImpl implements ResourceQuotaCalculator {
                                                     long currentMessagesUsed, long lastReportedMessages,
                                                     long lastReportTimeMSecsSinceEpoch) {
         // If we are about to go more than maxUsageReportSuppressRounds without reporting, send a report.
-        long currentTimeMSecs = System.currentTimeMillis();
-        long mSecsSinceLastReport = currentTimeMSecs - lastReportTimeMSecsSinceEpoch;
+        long currentTimeMSecs = System.currentTimeMillis(); // todo 当前时间
+        long mSecsSinceLastReport = currentTimeMSecs - lastReportTimeMSecsSinceEpoch; // todo 间隔时间
+        // todo 如果间隔时间超过了默认上报时间，返回true, 即上报
         if (mSecsSinceLastReport >= ResourceGroupService.maxIntervalForSuppressingReportsMSecs) {
             return true;
         }
 
+        // todo （message数量，大小）百分比变化（增加，减少）大于我们设置的容忍值（默认5%)，就上报
         // If the percentage change (increase or decrease) in usage is more than a threshold for
         // either bytes or messages, send a report.
         final float toleratedDriftPercentage = ResourceGroupService.UsageReportSuppressionTolerancePercentage;

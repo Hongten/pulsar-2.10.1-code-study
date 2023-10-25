@@ -26,6 +26,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 public class AuthenticationDataCommand implements AuthenticationDataSource {
+    // TODO: 2/23/23 包含userId，password
     protected final String authData;
     protected final SocketAddress remoteAddress;
     protected final SSLSession sslSession;

@@ -28,6 +28,7 @@ import org.apache.pulsar.client.api.transaction.Transaction;
 import org.apache.pulsar.common.classification.InterfaceAudience;
 import org.apache.pulsar.common.classification.InterfaceStability;
 
+// TODO: 2/22/23 消费统一接口
 /**
  * An interface that abstracts behavior of Pulsar's consumer.
  *

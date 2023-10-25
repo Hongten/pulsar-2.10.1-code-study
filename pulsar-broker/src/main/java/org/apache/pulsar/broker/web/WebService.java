@@ -76,14 +76,17 @@ public class WebService implements AutoCloseable {
     public WebService(PulsarService pulsar) throws PulsarServerException {
         this.handlers = Lists.newArrayList();
         this.pulsar = pulsar;
+        // TODO: 1/4/23 创建web server线程池
         this.webServiceExecutor = new WebExecutorThreadPool(
                 pulsar.getConfiguration().getNumHttpServerThreads(),
                 "pulsar-web");
         this.executorStats = WebExecutorStats.getStats(webServiceExecutor);
         this.server = new Server(webServiceExecutor);
+        // TODO: 1/4/23 默认为1024
         this.maxConcurrentRequests = pulsar.getConfiguration().getMaxConcurrentHttpRequests();
         List<ServerConnector> connectors = new ArrayList<>();
 
+        // TODO: 1/4/23 默认为8080
         Optional<Integer> port = pulsar.getConfiguration().getWebServicePort();
         if (port.isPresent()) {
             httpConnector = new PulsarServerConnector(server, 1, 1);
@@ -94,6 +97,7 @@ public class WebService implements AutoCloseable {
             httpConnector = null;
         }
 
+        // TODO: 1/4/23 TLS相关
         Optional<Integer> tlsPort = pulsar.getConfiguration().getWebServicePortTls();
         if (tlsPort.isPresent()) {
             try {
@@ -239,6 +243,7 @@ public class WebService implements AutoCloseable {
             handlers.add(stats);
 
             server.setHandler(stats);
+            // TODO: 1/4/23 web service start
             server.start();
 
             if (httpConnector != null) {

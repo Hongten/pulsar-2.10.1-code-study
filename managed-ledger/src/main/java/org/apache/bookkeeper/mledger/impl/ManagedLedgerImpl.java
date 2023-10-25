@@ -210,8 +210,11 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
     private final CallbackMutex offloadMutex = new CallbackMutex();
     private static final CompletableFuture<PositionImpl> NULL_OFFLOAD_PROMISE = CompletableFuture
             .completedFuture(PositionImpl.LATEST);
+    // TODO: 2/1/23 当前ledger
     private volatile LedgerHandle currentLedger;
+    // TODO: 2/1/23 当前Ledger里面Entries的个数
     private long currentLedgerEntries = 0;
+    // TODO: 2/1/23 当前ledger的大小
     private long currentLedgerSize = 0;
     private long lastLedgerCreatedTimestamp = 0;
     private long lastLedgerCreationFailureTimestamp = 0;
@@ -235,6 +238,7 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
     protected static final int DEFAULT_LEDGER_DELETE_RETRIES = 3;
     protected static final int DEFAULT_LEDGER_DELETE_BACKOFF_TIME_SEC = 60;
 
+    // todo 一个Ledger的状态
     public enum State {
         None, // Uninitialized
         LedgerOpened, // A ledger is ready to write into
@@ -785,8 +789,10 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
                 asyncCreateLedger(bookKeeper, config, digestType, this, Collections.emptyMap());
             }
         } else {
+            // TODO: 2/24/23 写入数据，Ledger状态应该是LedgerOpened
             checkArgument(state == State.LedgerOpened, "ledger=%s is not opened", state);
 
+            // TODO: 2/24/23 把数据写入当前ledger
             // Write into lastLedger
             addOperation.setLedger(currentLedger);
 
@@ -806,6 +812,7 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
                 addOperation.setCloseWhenDone(true);
                 STATE_UPDATER.set(this, State.ClosingLedger);
             }
+            // TODO: 2/24/23 开始写入数据到ledger
             addOperation.initiate();
         }
         // mark add entry activity
@@ -1674,8 +1681,10 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
     @Override
     public void rollCurrentLedgerIfFull() {
         log.info("[{}] Start checking if current ledger is full", name);
+        // todo 如果当前Ledger里面的entry数目大于0，并且如果Ledger已经满了， 并且Ledger的状态是为 ClosingLedger
         if (currentLedgerEntries > 0 && currentLedgerIsFull()
                 && STATE_UPDATER.compareAndSet(this, State.LedgerOpened, State.ClosingLedger)) {
+            // todo 创建一个新的Ledger
             currentLedger.asyncClose(new AsyncCallback.CloseCallback() {
                 @Override
                 public void closeComplete(int rc, LedgerHandle lh, Object o) {
@@ -1749,6 +1758,7 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
         }
     }
 
+    // TODO: 2/22/23 异步读取Entries
     void asyncReadEntries(OpReadEntry opReadEntry) {
         final State state = STATE_UPDATER.get(this);
         if (state == State.Fenced || state == State.Closed) {
@@ -1756,10 +1766,12 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
             return;
         }
 
+        // TODO: 2/22/23 获取到Ledgerid
         long ledgerId = opReadEntry.readPosition.getLedgerId();
 
         LedgerHandle currentLedger = this.currentLedger;
 
+        // TODO: 2/22/23 internalReadFromLedger为读取entries的方法
         if (currentLedger != null && ledgerId == currentLedger.getId()) {
             // Current writing ledger is not in the cache (since we don't want
             // it to be automatically evicted), and we cannot use 2 different
@@ -1937,6 +1949,7 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
             lastEntryInLedger = min(opReadEntry.maxPosition.getEntryId(), lastEntryInLedger);
         }
 
+        // TODO: 2/22/23 没有更多的消息被读取在这个Ledger上面
         if (firstEntry > lastEntryInLedger) {
             if (log.isDebugEnabled()) {
                 log.debug("[{}] No more messages to read from ledger={} lastEntry={} readEntry={}", name,
@@ -1960,12 +1973,14 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
             return;
         }
 
+        // TODO: 2/22/23 最会一个entry位置
         long lastEntry = min(firstEntry + opReadEntry.getNumberOfEntriesToRead() - 1, lastEntryInLedger);
 
         if (log.isDebugEnabled()) {
             log.debug("[{}] Reading entries from ledger {} - first={} last={}", name, ledger.getId(), firstEntry,
                     lastEntry);
         }
+        // TODO: 2/22/23 异步读取entry
         asyncReadEntry(ledger, firstEntry, lastEntry, false, opReadEntry, opReadEntry.ctx);
     }
 
@@ -1985,6 +2000,7 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
 
     protected void asyncReadEntry(ReadHandle ledger, long firstEntry, long lastEntry, boolean isSlowestReader,
             OpReadEntry opReadEntry, Object ctx) {
+        // TODO: 2/22/23 默认为120s timeout
         if (config.getReadEntryTimeoutSeconds() > 0) {
             // set readOpCount to uniquely validate if ReadEntryCallbackWrapper is already recycled
             long readOpCount = READ_OP_COUNT_UPDATER.incrementAndGet(this);
@@ -2030,6 +2046,7 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
             return readCallback;
         }
 
+        // TODO: 2/22/23 构建ReadEntryCallbackWrapper实例
         static ReadEntryCallbackWrapper create(String name, long ledgerId, long entryId, ReadEntriesCallback callback,
                 long readOpCount, long createdTime, Object ctx) {
             ReadEntryCallbackWrapper readCallback = RECYCLER.get();
@@ -3511,19 +3528,27 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
         return activeCursors.get(cursor.getName()) != null;
     }
 
+    // todo 判断一个Ledger是否被写满
     private boolean currentLedgerIsFull() {
+        // todo 如果Ledger metadata service不可用，直接返回 false
         if (!factory.isMetadataServiceAvailable()) {
             // We don't want to trigger metadata operations if we already know that we're currently disconnected
             return false;
         }
 
+        // todo quota检查： 如果Ledger当前的entry数量大于等于50k 或者 当前Ledger的size 大于等于 2048 MB
         boolean spaceQuotaReached = (currentLedgerEntries >= config.getMaxEntriesPerLedger()
                 || currentLedgerSize >= (config.getMaxSizePerLedgerMb() * MegaByte));
 
+        // todo 当前Ledger的创建了多久 = 当前时间 - 该Ledger创建时间
         long timeSinceLedgerCreationMs = clock.millis() - lastLedgerCreatedTimestamp;
+        // todo 最大时长检查： 当前Ledger的创建了多久时间 大于等于 4h
         boolean maxLedgerTimeReached = timeSinceLedgerCreationMs >= config.getMaximumRolloverTimeMs();
 
         if (spaceQuotaReached || maxLedgerTimeReached) {
+            // todo 默认的最小切换时间，只有当满足了 spaceQuotaReached 或者 maxLedgerTimeReached 才会进入到最小切换时间判断
+            // todo 这里感觉不合理... spaceQuotaReached -> getMinimumRolloverTimeMs. 也就是说在满足最小时间切换之前，需要满足quota先
+            // TODO: 2/3/23 优化方式：A. 可以按照大流量的topic，从创建一个leader后，当Entries数目满足spaceQuota条件的时间来设置这个值。 B. 简单粗暴方式，直接设置为0
             if (config.getMinimumRolloverTimeMs() > 0) {
 
                 boolean switchLedger = timeSinceLedgerCreationMs > config.getMinimumRolloverTimeMs();
@@ -3616,6 +3641,7 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
     }
 
     private static long getMaximumRolloverTimeMs(ManagedLedgerConfig config) {
+        // todo 240分钟
         return (long) (config.getMaximumRolloverTimeMs() * (1 + random.nextDouble() * 5 / 100.0));
     }
 
@@ -4102,12 +4128,13 @@ public class ManagedLedgerImpl implements ManagedLedger, CreateCallback {
 
     private void updateLastLedgerCreatedTimeAndScheduleRolloverTask() {
         this.lastLedgerCreatedTimestamp = clock.millis();
-        if (config.getMaximumRolloverTimeMs() > 0) {
+        if (config.getMaximumRolloverTimeMs() > 0) { // todo 默认4h
             if (checkLedgerRollTask != null && !checkLedgerRollTask.isDone()) {
                 // new ledger has been created successfully
                 // and the previous checkLedgerRollTask is not done, we could cancel it
                 checkLedgerRollTask.cancel(true);
             }
+            // todo 4个小时候，会执行这个task
             this.checkLedgerRollTask = this.scheduledExecutor.schedule(
                     safeRun(this::rollCurrentLedgerIfFull), this.maximumRolloverTimeMs, TimeUnit.MILLISECONDS);
         }

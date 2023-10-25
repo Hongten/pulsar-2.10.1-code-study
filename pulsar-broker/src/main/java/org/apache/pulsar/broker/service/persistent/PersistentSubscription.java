@@ -201,6 +201,7 @@ public class PersistentSubscription implements Subscription {
         return false;
     }
 
+    // TODO: 2/23/23 把consumer加入到subscription中
     @Override
     public CompletableFuture<Void> addConsumer(Consumer consumer) {
         return pendingAckHandle.pendingAckHandleFuture().thenCompose(future -> {
@@ -211,8 +212,10 @@ public class PersistentSubscription implements Subscription {
                     return FutureUtil.failedFuture(new SubscriptionFencedException("Subscription is fenced"));
                 }
 
+                // TODO: 2/23/23 初始化dispatcher
                 if (dispatcher == null || !dispatcher.isConsumerConnected()) {
                     Dispatcher previousDispatcher = null;
+                    // TODO: 2/23/23 streamingDispatch=false
                     boolean useStreamingDispatcher = topic.getBrokerService().getPulsar()
                             .getConfiguration().isStreamingDispatch();
                     switch (consumer.subType()) {
@@ -284,6 +287,7 @@ public class PersistentSubscription implements Subscription {
                 }
 
                 try {
+                    // TODO: 2/23/23 把consumer加入到dispatcher里面
                     dispatcher.addConsumer(consumer);
                     return CompletableFuture.completedFuture(null);
                 } catch (BrokerServiceException brokerServiceException) {

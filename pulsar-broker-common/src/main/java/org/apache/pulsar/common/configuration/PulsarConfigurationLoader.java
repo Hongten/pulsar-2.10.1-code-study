@@ -69,9 +69,12 @@ public class PulsarConfigurationLoader {
     public static <T extends PulsarConfiguration> T create(InputStream inStream,
             Class<? extends PulsarConfiguration> clazz) throws IOException, IllegalArgumentException {
         try {
+            // TODO: 12/30/22 空检查 
             requireNonNull(inStream);
             Properties properties = new Properties();
+            // TODO: 12/30/22 加载为键值对形式 
             properties.load(inStream);
+            // TODO: 12/30/22 更新对应的key， value
             return (create(properties, clazz));
         } finally {
             if (inStream != null) {
@@ -90,11 +93,14 @@ public class PulsarConfigurationLoader {
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public static <T extends PulsarConfiguration> T create(Properties properties,
             Class<? extends PulsarConfiguration> clazz) throws IOException, IllegalArgumentException {
+        // TODO: 12/30/22 空检查 
         requireNonNull(properties);
         T configuration = null;
         try {
             configuration = (T) clazz.getDeclaredConstructor().newInstance();
+            // TODO: 12/30/22 这里为赋值，这里只是设置properties而已，并没有更新对应的key, value。
             configuration.setProperties(properties);
+            // TODO: 12/30/22 这里为什么还需要update呢？所以需要这里来对key， value进行update
             update((Map) properties, configuration);
         } catch (InstantiationException | IllegalAccessException
                 | NoSuchMethodException | InvocationTargetException e) {

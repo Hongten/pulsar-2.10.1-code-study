@@ -131,6 +131,7 @@ public interface LoadManager {
     static LoadManager create(final PulsarService pulsar) {
         try {
             final ServiceConfiguration conf = pulsar.getConfiguration();
+            // TODO: 1/4/23 org.apache.pulsar.broker.loadbalance.impl.ModularLoadManagerImpl
             final Class<?> loadManagerClass = Class.forName(conf.getLoadManagerClassName());
             // Assume there is a constructor with one argument of PulsarService.
             final Object loadManagerInstance = loadManagerClass.getDeclaredConstructor().newInstance();

@@ -32,12 +32,16 @@ import java.util.concurrent.TimeUnit;
  */
 public class NamespaceName implements ServiceUnitId {
 
+    // todo namespace的名称
     private final String namespace;
 
+    // todo 租户名称
     private final String tenant;
+    // todo 集群名称
     private final String cluster;
     private final String localName;
 
+    // todo namespace存放的cache。30分钟后过期, 默认长度为100k
     private static final LoadingCache<String, NamespaceName> cache = CacheBuilder.newBuilder().maximumSize(100000)
             .expireAfterAccess(30, TimeUnit.MINUTES).build(new CacheLoader<String, NamespaceName>() {
                 @Override
@@ -46,6 +50,7 @@ public class NamespaceName implements ServiceUnitId {
                 }
             });
 
+    // todo 系统的默认namespace
     public static final NamespaceName SYSTEM_NAMESPACE = NamespaceName.get("pulsar/system");
 
     public static NamespaceName get(String tenant, String namespace) {
@@ -59,10 +64,12 @@ public class NamespaceName implements ServiceUnitId {
     }
 
     public static NamespaceName get(String namespace) {
+        // todo 若果namespace为null, 或'', 抛出异常 'Invalid null namespace:'
         if (namespace == null || namespace.isEmpty()) {
             throw new IllegalArgumentException("Invalid null namespace: " + namespace);
         }
         try {
+            // todo 从cache里面获取namespace. 从这里知道在pulsar集群里维护了一个namespace的cache
             return cache.get(namespace);
         } catch (ExecutionException e) {
             throw (RuntimeException) e.getCause();
@@ -179,6 +186,7 @@ public class NamespaceName implements ServiceUnitId {
     }
 
     public static void validateNamespaceName(String tenant, String namespace) {
+        // todo 校验namespace
         if ((tenant == null || tenant.isEmpty()) || (namespace == null || namespace.isEmpty())) {
             throw new IllegalArgumentException(
                     String.format("Invalid namespace format. namespace: %s/%s", tenant, namespace));
@@ -209,6 +217,7 @@ public class NamespaceName implements ServiceUnitId {
     }
 
     /**
+     * todo 如果返回true, 就是为v2. 因为有其他版本 '<tenant>/<cluster>/<namespace>'
      * Returns true if this is a V2 namespace prop/namespace-name.
      * @return true if v2
      */

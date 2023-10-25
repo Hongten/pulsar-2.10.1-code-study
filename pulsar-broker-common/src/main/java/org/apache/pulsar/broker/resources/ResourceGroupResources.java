@@ -28,6 +28,7 @@ import org.apache.pulsar.metadata.api.MetadataStoreException;
 
 public class ResourceGroupResources extends BaseResources<ResourceGroup> {
 
+    // todo zk的资源根目录
     private static final String BASE_PATH = "/admin/resourcegroups";
 
     public ResourceGroupResources(MetadataStore store, int operationTimeoutSec) {

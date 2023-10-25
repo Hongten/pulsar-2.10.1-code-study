@@ -34,6 +34,9 @@ import org.apache.pulsar.common.protocol.schema.SchemaHash;
 import org.apache.pulsar.common.util.FutureUtil;
 import org.apache.pulsar.common.util.collections.ConcurrentOpenHashMap;
 
+// TODO: 2/23/23 实现了一些通用的能力。模板模式
+//  - 管理配置文件，Schema与Schema缓存，拦截器（在发送或确认消息之前生效）
+//  - 实现了send，sendAsync等通用方法
 public abstract class ProducerBase<T> extends HandlerState implements Producer<T> {
 
     protected final CompletableFuture<Producer<T>> producerCreatedFuture;
@@ -170,7 +173,9 @@ public abstract class ProducerBase<T> extends HandlerState implements Producer<T
     }
 
     protected void onPartitionsChange(String topicName, int partitions) {
+        // TODO: 10/23/23 拦截器如果不为空
         if (interceptors != null) {
+            // TODO: 10/23/23 调用拦截器的 分区变更方法
             interceptors.onPartitionsChange(topicName, partitions);
         }
     }

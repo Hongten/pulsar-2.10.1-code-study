@@ -235,6 +235,7 @@ public class EntryCacheImpl implements EntryCache {
         }
     }
 
+    // TODO: 2/22/23 异步读取entry
     @Override
     public void asyncReadEntry(ReadHandle lh, long firstEntry, long lastEntry, boolean isSlowestReader,
             final ReadEntriesCallback callback, Object ctx) {
@@ -250,11 +251,14 @@ public class EntryCacheImpl implements EntryCache {
         }
     }
 
+    // TODO: 2/22/23 真正读取entry的实现 isSlowestReader这个参数没有用到
     @SuppressWarnings({ "unchecked", "rawtypes" })
     private void asyncReadEntry0(ReadHandle lh, long firstEntry, long lastEntry, boolean isSlowestReader,
             final ReadEntriesCallback callback, Object ctx) {
         final long ledgerId = lh.getId();
+        // TODO: 2/22/23 需要读取的entries
         final int entriesToRead = (int) (lastEntry - firstEntry) + 1;
+        // TODO: 2/22/23 读取的entries的最前，最后位置
         final PositionImpl firstPosition = PositionImpl.get(lh.getId(), firstEntry);
         final PositionImpl lastPosition = PositionImpl.get(lh.getId(), lastEntry);
 
@@ -264,6 +268,7 @@ public class EntryCacheImpl implements EntryCache {
 
         Collection<EntryImpl> cachedEntries = entries.getRange(firstPosition, lastPosition);
 
+        // TODO: 2/22/23 先从cache中获取 如果cache中有命中需要读取的entries，则从cache中获取=
         if (cachedEntries.size() == entriesToRead) {
             long totalCachedSize = 0;
             final List<EntryImpl> entriesToReturn = Lists.newArrayListWithExpectedSize(entriesToRead);
@@ -281,6 +286,7 @@ public class EntryCacheImpl implements EntryCache {
                         lastEntry);
             }
 
+            // TODO: 2/22/23 回调读取完entries
             callback.readEntriesComplete((List) entriesToReturn, ctx);
 
         } else {
@@ -288,6 +294,7 @@ public class EntryCacheImpl implements EntryCache {
                 cachedEntries.forEach(entry -> entry.release());
             }
 
+            // TODO: 2/22/23 如果cache中没有命中数据，则读取broker中的数据
             // Read all the entries from bookkeeper
             lh.readAsync(firstEntry, lastEntry).thenAcceptAsync(
                     ledgerEntries -> {

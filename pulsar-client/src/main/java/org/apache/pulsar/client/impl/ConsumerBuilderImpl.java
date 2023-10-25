@@ -104,20 +104,24 @@ public class ConsumerBuilderImpl<T> implements ConsumerBuilder<T> {
 
     @Override
     public CompletableFuture<Consumer<T>> subscribeAsync() {
+        // TODO: 10/17/23 topic名称检测
         if (conf.getTopicNames().isEmpty() && conf.getTopicsPattern() == null) {
             return FutureUtil
                     .failedFuture(new InvalidConfigurationException("Topic name must be set on the consumer builder"));
         }
 
+        // TODO: 10/17/23 subscription检测
         if (StringUtils.isBlank(conf.getSubscriptionName())) {
             return FutureUtil.failedFuture(
                     new InvalidConfigurationException("Subscription name must be set on the consumer builder"));
         }
 
+        // TODO: 10/17/23 消费模式检测
         if (conf.getKeySharedPolicy() != null && conf.getSubscriptionType() != SubscriptionType.Key_Shared) {
             return FutureUtil.failedFuture(
                     new InvalidConfigurationException("KeySharedPolicy must set with KeyShared subscription"));
         }
+        // TODO: 10/17/23 私信队列
         CompletableFuture<Void> applyDLQConfig;
         if (conf.isRetryEnable() && conf.getTopicNames().size() > 0) {
             TopicName topicFirst = TopicName.get(conf.getTopicNames().iterator().next());
@@ -169,6 +173,7 @@ public class ConsumerBuilderImpl<T> implements ConsumerBuilder<T> {
             applyDLQConfig = CompletableFuture.completedFuture(null);
         }
         return applyDLQConfig.thenCompose(__ -> {
+            // TODO: 10/17/23 拦截器校验
             if (interceptorList == null || interceptorList.size() == 0) {
                 return client.subscribeAsync(conf, schema, null);
             } else {

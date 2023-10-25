@@ -172,6 +172,7 @@ public class NonPersistentTopic extends AbstractTopic implements Topic, TopicPol
                         schemaValidationEnforced = policies.schema_validation_enforced;
                     }
                     updatePublishDispatcher();
+                    // TODO: 2/15/23 这里进行updateRGlimiter
                     updateResourceGroupLimiter(optPolicies);
                 });
     }
@@ -498,6 +499,7 @@ public class NonPersistentTopic extends AbstractTopic implements Topic, TopicPol
             topicPublishRateLimiter.close();
         }
         subscriptions.forEach((s, sub) -> futures.add(sub.disconnect()));
+        // TODO: 2/15/23 当RG 发送限制器不为空的时候，需要把注册的func移除
         if (this.resourceGroupPublishLimiter != null) {
             this.resourceGroupPublishLimiter.unregisterRateLimitFunction(this.getName());
         }

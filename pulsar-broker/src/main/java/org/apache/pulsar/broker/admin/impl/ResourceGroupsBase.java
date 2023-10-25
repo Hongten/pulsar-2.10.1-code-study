@@ -88,6 +88,7 @@ public abstract class ResourceGroupsBase extends AdminResource {
     }
 
     protected void internalCreateResourceGroup(String rgName, ResourceGroup rgConfig) {
+        // todo 在创建的时候，如果我们没有设置值，则会设置默认值
         rgConfig.setPublishRateInMsgs(rgConfig.getPublishRateInMsgs() == null
                 ? -1 : rgConfig.getPublishRateInMsgs());
         rgConfig.setPublishRateInBytes(rgConfig.getPublishRateInBytes() == null
@@ -110,7 +111,9 @@ public abstract class ResourceGroupsBase extends AdminResource {
     }
     protected void internalCreateOrUpdateResourceGroup(String rgName, ResourceGroup rgConfig) {
         try {
+            // todo 权限检查
             validateSuperUserAccess();
+            // todo null检查
             checkNotNull(rgConfig);
             /*
              * see if ResourceGroup exists and treat the request as a update if it does.
@@ -123,6 +126,7 @@ public abstract class ResourceGroupsBase extends AdminResource {
             }
 
             try {
+                // todo 如果存在，则更新。否则，创建
                 if (rgExists) {
                     internalUpdateResourceGroup(rgName, rgConfig);
                 } else {

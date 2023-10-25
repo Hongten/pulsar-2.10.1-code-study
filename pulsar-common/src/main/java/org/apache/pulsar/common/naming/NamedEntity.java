@@ -23,6 +23,7 @@ import java.util.regex.Pattern;
 import lombok.experimental.UtilityClass;
 
 /**
+ * todo pulsar里面名称校验
  */
 @UtilityClass
 public class NamedEntity {

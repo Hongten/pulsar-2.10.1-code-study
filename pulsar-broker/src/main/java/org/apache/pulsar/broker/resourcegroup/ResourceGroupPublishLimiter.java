@@ -31,15 +31,21 @@ import org.apache.pulsar.common.util.RateLimitFunction;
 import org.apache.pulsar.common.util.RateLimiter;
 
 public class ResourceGroupPublishLimiter implements PublishRateLimiter, RateLimitFunction, AutoCloseable  {
+    // todo publish msg 最大值
     protected volatile long publishMaxMessageRate = 0;
+    // todo publish byte 最大值
     protected volatile long publishMaxByteRate = 0;
     protected volatile boolean publishThrottlingEnabled = false;
+    // TODO: 2/14/23 message的LImiter
     private volatile RateLimiter publishRateLimiterOnMessage;
+    // TODO: 2/14/23 byte的Limiter
     private volatile RateLimiter publishRateLimiterOnByte;
     private final ScheduledExecutorService scheduledExecutorService;
 
+    // TODO: 2/14/23 这里是RateLimitFunction map <topicName, fun>
     ConcurrentHashMap<String, RateLimitFunction> rateLimitFunctionMap = new ConcurrentHashMap<>();
 
+    // TODO: 2/10/23 初始化ResourceGroupPublishLimiter。当RG数量多以后，scheduledExecutorService线程池大小为20，有性能问题
     public ResourceGroupPublishLimiter(ResourceGroup resourceGroup, ScheduledExecutorService scheduledExecutorService) {
         this.scheduledExecutorService = scheduledExecutorService;
         update(resourceGroup);
@@ -76,6 +82,7 @@ public class ResourceGroupPublishLimiter implements PublishRateLimiter, RateLimi
     }
 
     public void update(BytesAndMessagesCount maxPublishRate) {
+        // TODO: 2/14/23 更新调整后的限流quota值
         update(maxPublishRate.messages, maxPublishRate.bytes);
     }
 
@@ -89,6 +96,7 @@ public class ResourceGroupPublishLimiter implements PublishRateLimiter, RateLimi
     public void update(ResourceGroup resourceGroup) {
         long publishRateInMsgs = 0, publishRateInBytes = 0;
         if (resourceGroup != null) {
+            // TODO: 2/10/23 获取到对应的bytesin， messageIn
             publishRateInBytes = resourceGroup.getPublishRateInBytes() == null
                     ? -1 : resourceGroup.getPublishRateInBytes();
             publishRateInMsgs = resourceGroup.getPublishRateInMsgs() == null
@@ -101,10 +109,13 @@ public class ResourceGroupPublishLimiter implements PublishRateLimiter, RateLimi
     public void update(long publishRateInMsgs, long publishRateInBytes) {
         replaceLimiters(() -> {
             if (publishRateInMsgs > 0 || publishRateInBytes > 0) {
+                // todo 感觉这个参数没有起任何作用
                 this.publishThrottlingEnabled = true;
+                // TODO: 2/10/23 获取大于等于0的值 这里的值是从RG里面获取，这里的值为RG调整后的quota值
                 this.publishMaxMessageRate = Math.max(publishRateInMsgs, 0);
                 this.publishMaxByteRate = Math.max(publishRateInBytes, 0);
                 if (this.publishMaxMessageRate > 0) {
+                    // TODO: 2/10/23 每隔1s执行一次apply方法
                     publishRateLimiterOnMessage = RateLimiter.builder()
                             .scheduledExecutorService(scheduledExecutorService)
                             .permits(publishMaxMessageRate)
@@ -114,6 +125,7 @@ public class ResourceGroupPublishLimiter implements PublishRateLimiter, RateLimi
                             .build();
                 }
                 if (this.publishMaxByteRate > 0) {
+                    // TODO: 2/10/23 每隔1s执行一次apply方法
                     publishRateLimiterOnByte =
                     RateLimiter.builder()
                             .scheduledExecutorService(scheduledExecutorService)
@@ -133,12 +145,14 @@ public class ResourceGroupPublishLimiter implements PublishRateLimiter, RateLimi
         });
     }
 
+    // TODO: 2/15/23 返回true，说明都没有超quota。 false说明至少一个超quota了
     public boolean tryAcquire(int numbers, long bytes) {
         return (publishRateLimiterOnMessage == null || publishRateLimiterOnMessage.tryAcquire(numbers))
             && (publishRateLimiterOnByte == null || publishRateLimiterOnByte.tryAcquire(bytes));
     }
 
     public void registerRateLimitFunction(String name, RateLimitFunction func) {
+        // TODO: 2/15/23 <topicName, func>
         rateLimitFunctionMap.put(name, func);
     }
 
@@ -153,6 +167,7 @@ public class ResourceGroupPublishLimiter implements PublishRateLimiter, RateLimi
         publishRateLimiterOnByte = null;
         try {
             if (updater != null) {
+                // TODO: 2/10/23 调用run方法
                 updater.run();
             }
         } finally {
@@ -178,6 +193,7 @@ public class ResourceGroupPublishLimiter implements PublishRateLimiter, RateLimi
 
     @Override
     public void apply() {
+        // TODO: 2/14/23 获取到msg，byte limiter
         // Make sure that both the rate limiters are applied before opening the flood gates.
         RateLimiter currentTopicPublishRateLimiterOnMessage = publishRateLimiterOnMessage;
         RateLimiter currentTopicPublishRateLimiterOnByte = publishRateLimiterOnByte;
@@ -185,6 +201,7 @@ public class ResourceGroupPublishLimiter implements PublishRateLimiter, RateLimi
                 && currentTopicPublishRateLimiterOnMessage.getAvailablePermits() <= 0)
             || (currentTopicPublishRateLimiterOnByte != null
                 && currentTopicPublishRateLimiterOnByte.getAvailablePermits() <= 0)) {
+            // TODO: 2/14/23 可用的permit小于零，直接返回
             return;
         }
 

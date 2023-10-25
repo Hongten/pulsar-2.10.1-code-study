@@ -195,11 +195,13 @@ public class BrokerService implements Closeable {
     private final PulsarService pulsar;
     private final ManagedLedgerFactory managedLedgerFactory;
 
+    // 存放所有的topic
     private final ConcurrentOpenHashMap<String, CompletableFuture<Optional<Topic>>> topics;
 
     private final ConcurrentOpenHashMap<String, PulsarClient> replicationClients;
     private final ConcurrentOpenHashMap<String, PulsarAdmin> clusterAdmins;
 
+    // TODO: 12/30/22 多层topic map
     // Multi-layer topics map:
     // Namespace --> Bundle --> topicName --> topic
     private final ConcurrentOpenHashMap<String, ConcurrentOpenHashMap<String, ConcurrentOpenHashMap<String, Topic>>>
@@ -214,8 +216,10 @@ public class BrokerService implements Closeable {
     private final OrderedExecutor topicOrderedExecutor;
     // offline topic backlog cache
     private final ConcurrentOpenHashMap<TopicName, PersistentOfflineTopicStats> offlineTopicStatCache;
+    // TODO: 2/21/23 动态更新配置的map。 获取到所有配置了动态配置的字段 dynamic = true，然后放入到dynamicConfigurationMap
     private static final ConcurrentOpenHashMap<String, ConfigField> dynamicConfigurationMap =
             prepareDynamicConfigurationMap();
+    // TODO: 2/21/23 监听器map
     private final ConcurrentOpenHashMap<String, Consumer<?>> configRegisteredListeners;
 
     private final ConcurrentLinkedQueue<TopicLoadingContext> pendingTopicLoadingQueue;
@@ -232,6 +236,7 @@ public class BrokerService implements Closeable {
     private final ObserverGauge pendingTopicLoadRequests;
 
     private final ScheduledExecutorService inactivityMonitor;
+    // Todo 按照固定时间扫描所有的topic，如果有发现超过TTL时限的Ledger，则自动确认
     private final ScheduledExecutorService messageExpiryMonitor;
     private final ScheduledExecutorService compactionMonitor;
     private final ScheduledExecutorService consumedLedgersMonitor;
@@ -283,53 +288,67 @@ public class BrokerService implements Closeable {
 
     public BrokerService(PulsarService pulsar, EventLoopGroup eventLoopGroup) throws Exception {
         this.pulsar = pulsar;
+        // TODO: 12/30/22 默认为false 
         this.preciseTopicPublishRateLimitingEnable =
                 pulsar.getConfiguration().isPreciseTopicPublishRateLimiterEnable();
         this.managedLedgerFactory = pulsar.getManagedLedgerFactory();
+        // topics map初始化操作
         this.topics =
                 ConcurrentOpenHashMap.<String, CompletableFuture<Optional<Topic>>>newBuilder()
                 .build();
+        // TODO: 12/30/22 同步客户端 
         this.replicationClients =
                 ConcurrentOpenHashMap.<String, PulsarClient>newBuilder().build();
+        // TODO: 12/30/22 pulsarAdmin map
         this.clusterAdmins =
                 ConcurrentOpenHashMap.<String, PulsarAdmin>newBuilder().build();
+        // TODO: 12/30/22 30s检查一次
         this.keepAliveIntervalSeconds = pulsar.getConfiguration().getKeepAliveIntervalSeconds();
         this.configRegisteredListeners =
                 ConcurrentOpenHashMap.<String, Consumer<?>>newBuilder().build();
         this.pendingTopicLoadingQueue = Queues.newConcurrentLinkedQueue();
-
+        // TODO: 12/30/22  Namespace --> Bundle --> topicName --> topic
         this.multiLayerTopicsMap = ConcurrentOpenHashMap.<String,
                 ConcurrentOpenHashMap<String, ConcurrentOpenHashMap<String, Topic>>>newBuilder()
                 .build();
+        // TODO: 12/30/22 broker上面的topic map 
         this.owningTopics = ConcurrentOpenHashMap.<String,
                 ConcurrentOpenHashSet<Integer>>newBuilder()
                 .build();
+        // TODO: 12/30/22 broker状态信息初始化
         this.pulsarStats = new PulsarStats(pulsar);
         this.offlineTopicStatCache =
                 ConcurrentOpenHashMap.<TopicName,
                         PersistentOfflineTopicStats>newBuilder().build();
 
+        // TODO: 12/30/22 topic workers
         this.topicOrderedExecutor = OrderedScheduler.newSchedulerBuilder()
                 .numThreads(pulsar.getConfiguration().getNumWorkerThreadsForNonPersistentTopic())
                 .name("broker-topic-workers").build();
         final DefaultThreadFactory acceptorThreadFactory = new DefaultThreadFactory("pulsar-acceptor");
 
+        // TODO: 12/30/22 一个broker一个acceptor ， numAcceptorThreads=1默认
         this.acceptorGroup = EventLoopUtil.newEventLoopGroup(
                 pulsar.getConfiguration().getNumAcceptorThreads(), false, acceptorThreadFactory);
         this.workerGroup = eventLoopGroup;
+        // TODO: 12/30/22 状态更新线程 ，单线程
         this.statsUpdater = Executors
                 .newSingleThreadScheduledExecutor(new DefaultThreadFactory("pulsar-stats-updater"));
+        // TODO: 12/30/22 认证服务初始化
         this.authorizationService = new AuthorizationService(
                 pulsar.getConfiguration(), pulsar().getPulsarResources());
+        // TODO: 12/30/22 如果有配置过滤器，就在这里进行初始化 ，默认没有配置
         if (!pulsar.getConfiguration().getEntryFilterNames().isEmpty()) {
             this.entryFilters = EntryFilterProvider.createEntryFilters(pulsar.getConfiguration());
         }
 
+        // TODO: 12/30/22 设置监听器 
         pulsar.getLocalMetadataStore().registerListener(this::handleMetadataChanges);
         pulsar.getConfigurationMetadataStore().registerListener(this::handleMetadataChanges);
-
+        // TODO: 12/30/22 GC， duplicate， inactive subscribe检查
         this.inactivityMonitor = Executors
                 .newSingleThreadScheduledExecutor(new DefaultThreadFactory("pulsar-inactivity-monitor"));
+        // todo 对messageExpiryMonitor进行初始化操作，线程名称为 'pulsar-msg-expiry-monitor'
         this.messageExpiryMonitor = Executors
                 .newSingleThreadScheduledExecutor(new DefaultThreadFactory("pulsar-msg-expiry-monitor"));
         this.compactionMonitor =
@@ -338,14 +357,18 @@ public class BrokerService implements Closeable {
         this.consumedLedgersMonitor = Executors
                 .newSingleThreadScheduledExecutor(new DefaultThreadFactory("consumed-Ledgers-monitor"));
 
+        // TODO: 1/4/23 积压日志quotaManager
         this.backlogQuotaManager = new BacklogQuotaManager(pulsar);
+        // TODO: 1/4/23 积压log检查线程
         this.backlogQuotaChecker = Executors
                 .newSingleThreadScheduledExecutor(new DefaultThreadFactory("pulsar-backlog-quota-checker"));
         this.authenticationService = new AuthenticationService(pulsar.getConfiguration());
         this.blockedDispatchers =
                 ConcurrentOpenHashSet.<PersistentDispatcherMultipleConsumers>newBuilder().build();
+        // TODO: 2/21/23 动态配置加载和注册监听器
         // update dynamic configuration and register-listener
         updateConfigurationAndRegisterListeners();
+        // TODO: 10/18/23 LOOKUP请求信号，默认最大为50k
         this.lookupRequestSemaphore = new AtomicReference<Semaphore>(
                 new Semaphore(pulsar.getConfiguration().getMaxConcurrentLookupRequest(), false));
         this.topicLoadRequestSemaphore = new AtomicReference<Semaphore>(
@@ -374,6 +397,7 @@ public class BrokerService implements Closeable {
 
         this.defaultServerBootstrap = defaultServerBootstrap();
 
+        // TODO: 1/4/23 metrics
         this.pendingLookupRequests = ObserverGauge.build("pulsar_broker_lookup_pending_requests", "-")
                 .supplier(() -> pulsar.getConfig().getMaxConcurrentLookupRequest()
                         - lookupRequestSemaphore.get().availablePermits())
@@ -399,6 +423,7 @@ public class BrokerService implements Closeable {
     public void startProtocolHandlers(
         Map<String, Map<InetSocketAddress, ChannelInitializer<SocketChannel>>> protocolHandlers) {
 
+        // TODO: 1/4/23 启动额外的协议处理。 e.g KoP
         protocolHandlers.forEach((protocol, initializers) -> {
             initializers.forEach((address, initializer) -> {
                 try {
@@ -416,6 +441,7 @@ public class BrokerService implements Closeable {
                                       ChannelInitializer<SocketChannel> initializer) throws IOException {
 
         ServiceConfiguration configuration = pulsar.getConfiguration();
+        // TODO: 1/4/23 默认为true 使用单独的线程池来处理额外的协议处理
         boolean useSeparateThreadPool = configuration.isUseSeparateThreadPoolForProtocolHandlers();
         ServerBootstrap bootstrap;
         if (useSeparateThreadPool) {
@@ -425,6 +451,7 @@ public class BrokerService implements Closeable {
             bootstrap.childOption(ChannelOption.RCVBUF_ALLOCATOR,
                     new AdaptiveRecvByteBufAllocator(1024, 16 * 1024, 1 * 1024 * 1024));
             EventLoopUtil.enableTriggeredMode(bootstrap);
+            // TODO: 1/4/23 ph - Protocol Handler
             DefaultThreadFactory defaultThreadFactory = new DefaultThreadFactory("pulsar-ph-" + protocol);
             EventLoopGroup dedicatedWorkerGroup =
                     EventLoopUtil.newEventLoopGroup(configuration.getNumIOThreads(), false, defaultThreadFactory);
@@ -502,6 +529,7 @@ public class BrokerService implements Closeable {
             }
         }
 
+        // TODO: 1/4/23 把后台线程拉起来
         // start other housekeeping functions
         this.startStatsUpdater(
                 serviceConfig.getStatsUpdateInitialDelayInSecs(),
@@ -512,6 +540,7 @@ public class BrokerService implements Closeable {
         this.startConsumedLedgersMonitor();
         this.startBacklogQuotaChecker();
         this.updateBrokerPublisherThrottlingMaxRate();
+        // TODO: 2/21/23 把broker级别的限流器初始化
         this.updateBrokerDispatchThrottlingMaxRate();
         this.startCheckReplicationPolicies();
         this.startDeduplicationSnapshotMonitor();
@@ -562,13 +591,16 @@ public class BrokerService implements Closeable {
         }
     }
 
+    // todo 对Ledger里面message的TTL时限进行检查
     protected void startMessageExpiryMonitor() {
+        // todo 默认 5 分钟检查一次 messageExpiryCheckIntervalInMinutes = 5
         int interval = pulsar().getConfiguration().getMessageExpiryCheckIntervalInMinutes();
         messageExpiryMonitor.scheduleAtFixedRate(safeRun(this::checkMessageExpiry), interval, interval,
                 TimeUnit.MINUTES);
     }
 
     protected void startCheckReplicationPolicies() {
+        // TODO: 12/30/22 600s， 10分钟一次检查
         int interval = pulsar.getConfig().getReplicationPolicyCheckDurationSeconds();
         if (interval > 0) {
             messageExpiryMonitor.scheduleAtFixedRate(safeRun(this::checkReplicationPolicies), interval, interval,
@@ -808,7 +840,7 @@ public class BrokerService implements Closeable {
                                         .shutdown(
                                                 statsUpdater,
                                                 inactivityMonitor,
-                                                messageExpiryMonitor,
+                                                messageExpiryMonitor, // todo 对messageExpiryMonitor停止操作
                                                 compactionMonitor,
                                                 consumedLedgersMonitor,
                                                 backlogQuotaChecker,
@@ -986,6 +1018,7 @@ public class BrokerService implements Closeable {
                             return CompletableFuture.completedFuture(Optional.empty());
                         });
                     } else if (createIfMissing) {
+                        // TODO: 2/23/23 自动创建
                         return createNonPersistentTopic(name);
                     } else {
                         return CompletableFuture.completedFuture(Optional.empty());
@@ -1553,6 +1586,7 @@ public class BrokerService implements Closeable {
                             .setMaxUnackedRangesToPersist(serviceConfig.getManagedLedgerMaxUnackedRangesToPersist());
                     managedLedgerConfig.setMaxUnackedRangesToPersistInZk(
                             serviceConfig.getManagedLedgerMaxUnackedRangesToPersistInZooKeeper());
+                    // TODO: 2/1/23 设置managedLedgerMaxEntriesPerLedger ，默认为50000
                     managedLedgerConfig.setMaxEntriesPerLedger(serviceConfig.getManagedLedgerMaxEntriesPerLedger());
                     managedLedgerConfig
                             .setMinimumRolloverTime(serviceConfig.getManagedLedgerMinLedgerRolloverTimeMinutes(),
@@ -1782,8 +1816,11 @@ public class BrokerService implements Closeable {
      * Iterates over all loaded topics in the broker.
      */
     public void forEachTopic(Consumer<Topic> consumer) {
+        // topic 是一个 map
         topics.forEach((n, t) -> {
+            // 获取topic
             Optional<Topic> topic = extractTopic(t);
+            // 如果topic不为null
             topic.ifPresent(consumer::accept);
         });
     }
@@ -1832,6 +1869,7 @@ public class BrokerService implements Closeable {
     public CompletableFuture<Void> checkTopicNsOwnership(final String topic) {
         TopicName topicName = TopicName.get(topic);
 
+        // TODO: 2/23/23 查找topic是否在namespace对应的bundle上面
         return pulsar.getNamespaceService().checkTopicOwnership(topicName)
                 .thenCompose(ownedByThisInstance -> {
                     if (ownedByThisInstance) {
@@ -1971,10 +2009,12 @@ public class BrokerService implements Closeable {
 
 
     private void handleMetadataChanges(Notification n) {
+        // TODO: 12/30/22 有更新策略，则进行更新 
         if (n.getType() == NotificationType.Modified && NamespaceResources.pathIsFromNamespace(n.getPath())) {
             NamespaceName ns = NamespaceResources.namespaceFromPath(n.getPath());
             handlePoliciesUpdates(ns);
         } else if (pulsar().getPulsarResources().getDynamicConfigResources().isDynamicConfigurationPath(n.getPath())) {
+            // TODO: 12/30/22 如果是动态配置，则动态更新配置
             handleDynamicConfigurationUpdates();
         }
 
@@ -2012,16 +2052,20 @@ public class BrokerService implements Closeable {
     }
 
     private void handleDynamicConfigurationUpdates() {
+        // TODO: 2/21/23 获取到zk的 /admin/configuration 节点
         pulsar().getPulsarResources().getDynamicConfigResources().getDynamicConfigurationAsync()
                 .thenAccept(optMap -> {
                     if (!optMap.isPresent()) {
                         return;
                     }
+                    // TODO: 2/21/23 zk /admin/configuration 数据
                     Map<String, String> data = optMap.get();
                     data.forEach((configKey, value) -> {
+                        // TODO: 2/21/23 获取动态配置的配置
                         Field configField = dynamicConfigurationMap.get(configKey).field;
                         Object newValue = FieldParser.value(data.get(configKey), configField);
                         if (configField != null) {
+                            // TODO: 2/21/23 获取到动态配置项所对应的监听器 。这行可以移动到log.info()后面
                             Consumer listener = configRegisteredListeners.get(configKey);
                             try {
                                 Object existingValue = configField.get(pulsar.getConfiguration());
@@ -2029,6 +2073,7 @@ public class BrokerService implements Closeable {
                                 log.info("Successfully updated configuration {}/{}", configKey,
                                         data.get(configKey));
                                 if (listener != null && !existingValue.equals(newValue)) {
+                                    // TODO: 2/21/23 更新动态配置的值
                                     listener.accept(newValue);
                                 }
                             } catch (Exception e) {
@@ -2087,10 +2132,12 @@ public class BrokerService implements Closeable {
     }
 
     public boolean isAuthenticationEnabled() {
+        // TODO: 2/23/23 我们是开启了认证的authenticationEnabled=true
         return pulsar.getConfiguration().isAuthenticationEnabled();
     }
 
     public boolean isAuthorizationEnabled() {
+        // TODO: 2/23/23 我们开启了authorizationEnabled=true
         return pulsar.getConfiguration().isAuthorizationEnabled();
     }
 
@@ -2135,6 +2182,7 @@ public class BrokerService implements Closeable {
     private void updateConfigurationAndRegisterListeners() {
         // (1) Dynamic-config value validation: add validator if updated value required strict check before considering
         // validate configured load-manager classname present into classpath
+        // TODO: 1/4/23 默认的load manager - org.apache.pulsar.broker.loadbalance.impl.ModularLoadManagerImpl
         addDynamicConfigValidator("loadManagerClassName", (className) -> {
             try {
                 Class.forName(className);
@@ -2214,6 +2262,7 @@ public class BrokerService implements Closeable {
         registerConfigurationListener("brokerPublisherThrottlingMaxByteRate",
                 (brokerPublisherThrottlingMaxByteRate) ->
                         updateBrokerPublisherThrottlingMaxRate());
+        // TODO: 2/21/23 动态更新broker级别消费限流配置
         // add listener to notify broker dispatch-rate dynamic config
         registerConfigurationListener("dispatchThrottlingRateInMsg",
                 (dispatchThrottlingRateInMsg) ->
@@ -2237,8 +2286,10 @@ public class BrokerService implements Closeable {
 
     private void updateBrokerDispatchThrottlingMaxRate() {
         if (brokerDispatchRateLimiter == null) {
+            // TODO: 2/21/23 初始化消费限流器，构造器里面会调用updateDispatchRate()方法
             brokerDispatchRateLimiter = new DispatchRateLimiter(this);
         } else {
+            // TODO: 2/21/23 直接调用updateDispatchRate()更新
             brokerDispatchRateLimiter.updateDispatchRate();
         }
     }
@@ -2341,6 +2392,7 @@ public class BrokerService implements Closeable {
         });
     }
 
+    // TODO: 2/21/23 动态更新配置监听器
     /**
      * Allows a listener to listen on update of {@link ServiceConfiguration} change, so listener can take appropriate
      * action if any specific config-field value has been changed.
@@ -2369,6 +2421,7 @@ public class BrokerService implements Closeable {
 
     private void validateConfigKey(String key) {
         try {
+            // TODO: 2/21/23 必须是在ServiceConfiguration类里面定义的字段
             ServiceConfiguration.class.getDeclaredField(key);
         } catch (Exception e) {
             log.error("ServiceConfiguration key {} not found {}", key, e.getMessage());
@@ -2377,6 +2430,7 @@ public class BrokerService implements Closeable {
     }
 
     /**
+     * todo 动态配置更新操作
      * Updates pulsar.ServiceConfiguration's dynamic field with value persistent into zk-dynamic path. It also validates
      * dynamic-value before updating it and throws {@code IllegalArgumentException} if validation fails
      */
@@ -2384,11 +2438,13 @@ public class BrokerService implements Closeable {
         Optional<Map<String, String>> configCache = Optional.empty();
 
         try {
+            // TODO: 1/4/23 获取到zk上面的所有动态配置信息
             configCache  =
                     pulsar().getPulsarResources().getDynamicConfigResources().getDynamicConfiguration();
 
             // create dynamic-config if not exist.
             if (!configCache.isPresent()) {
+                // TODO: 1/4/23 如果不存在，则把现有的配置信息写入到zk
                 pulsar().getPulsarResources().getDynamicConfigResources()
                         .setDynamicConfigurationWithCreate(n -> Maps.newHashMap());
             }
@@ -2453,6 +2509,7 @@ public class BrokerService implements Closeable {
         for (Field field : ServiceConfiguration.class.getDeclaredFields()) {
             if (field != null && field.isAnnotationPresent(FieldContext.class)) {
                 field.setAccessible(true);
+                // TODO: 2/21/23 获取到所有配置了动态配置的字段 dynamic = true，然后放入到dynamicConfigurationMap
                 if (field.getAnnotation(FieldContext.class).dynamic()) {
                     dynamicConfigurationMap.put(field.getName(), new ConfigField(field));
                 }
@@ -2711,9 +2768,12 @@ public class BrokerService implements Closeable {
      * Safely extract optional topic instance from a future, in a way to avoid unchecked exceptions and race conditions.
      */
     public static Optional<Topic> extractTopic(CompletableFuture<Optional<Topic>> topicFuture) {
+        // 检查topicFuture是否完成
         if (topicFuture.isDone() && !topicFuture.isCompletedExceptionally()) {
+            // 完成就返回
             return topicFuture.join();
         } else {
+            // 否则返回一个empty对象
             return Optional.empty();
         }
     }
@@ -2748,6 +2808,7 @@ public class BrokerService implements Closeable {
         return isAllowAutoTopicCreation(topicName);
     }
 
+    // TODO: 2/23/23 默认会自动创建topic 
     public boolean isAllowAutoTopicCreation(final TopicName topicName) {
         //System topic can always be created automatically
         if (pulsar.getConfiguration().isSystemTopicEnabled() && isSystemTopic(topicName)) {
@@ -2757,6 +2818,7 @@ public class BrokerService implements Closeable {
         if (autoTopicCreationOverride != null) {
             return autoTopicCreationOverride.isAllowAutoTopicCreation();
         } else {
+            // TODO: 2/23/23 allowAutoTopicCreation=true 
             return pulsar.getConfiguration().isAllowAutoTopicCreation();
         }
     }
@@ -2821,6 +2883,7 @@ public class BrokerService implements Closeable {
         return isSystemTopic(TopicName.get(topic));
     }
 
+    // TODO: 2/23/23 判断是否为系统topic，"__" 开头或者 "pulsar/system"下面的topic，多数是系统topic
     public boolean isSystemTopic(TopicName topicName) {
         if (topicName.getNamespaceObject().equals(NamespaceName.SYSTEM_NAMESPACE)
                 || topicName.getNamespaceObject().equals(pulsar.getHeartbeatNamespaceV1())

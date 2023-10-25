@@ -85,6 +85,7 @@ public class ResourceGroupsImpl extends BaseResource implements ResourceGroups {
         return future;
     }
 
+    // todo 创建一个resourcegroup
     @Override
     public void createResourceGroup(String name, ResourceGroup resourcegroup) throws PulsarAdminException {
         sync(() -> createResourceGroupAsync(name, resourcegroup));

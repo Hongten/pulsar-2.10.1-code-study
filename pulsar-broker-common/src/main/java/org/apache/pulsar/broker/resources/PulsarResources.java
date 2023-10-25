@@ -58,6 +58,7 @@ public class PulsarResources {
     public PulsarResources(MetadataStore localMetadataStore, MetadataStore configurationMetadataStore,
             int operationTimeoutSec) {
         if (configurationMetadataStore != null) {
+            // TODO: 12/30/22 租户，集群，命名空间，resourcegroup
             tenantResources = new TenantResources(configurationMetadataStore, operationTimeoutSec);
             clusterResources = new ClusterResources(configurationMetadataStore, operationTimeoutSec);
             namespaceResources = new NamespaceResources(localMetadataStore, configurationMetadataStore,
@@ -71,6 +72,7 @@ public class PulsarResources {
         }
 
         if (localMetadataStore != null) {
+            // TODO: 12/30/22 动态配置
             dynamicConfigResources = new DynamicConfigurationResources(localMetadataStore, operationTimeoutSec);
             localPolicies = new LocalPoliciesResources(localMetadataStore, operationTimeoutSec);
             loadReportResources = new LoadManagerReportResources(localMetadataStore, operationTimeoutSec);

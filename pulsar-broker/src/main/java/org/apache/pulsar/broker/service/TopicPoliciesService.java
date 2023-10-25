@@ -49,6 +49,8 @@ public interface TopicPoliciesService {
     CompletableFuture<Void> deleteTopicPoliciesAsync(TopicName topicName);
 
     /**
+     * todo topicLevelPoliciesEnabled=false, 默认情况下是没有开启topic的策略的。即TopicPoliciesServiceDisabled
+     * todo 当设置topicLevelPoliciesEnabled=true，使用SystemTopicBasedTopicPoliciesService实现
      * Update policies for a topic async.
      *
      * @param topicName topic name
@@ -89,7 +91,7 @@ public interface TopicPoliciesService {
               final Backoff backoff, ScheduledExecutorService scheduledExecutorService, boolean isGlobal) {
         CompletableFuture<Optional<TopicPolicies>> response = new CompletableFuture<>();
         Backoff usedBackoff = backoff == null ? new BackoffBuilder()
-                .setInitialTime(500, TimeUnit.MILLISECONDS)
+                .setInitialTime(500, TimeUnit.MILLISECONDS) // TODO: 1/18/23 这里是否也可以提供类似默认的timeout呢？类似- client.getConfiguration().getInitialBackoffIntervalNanos()
                 .setMandatoryStop(DEFAULT_GET_TOPIC_POLICY_TIMEOUT, TimeUnit.MILLISECONDS)
                 .setMax(DEFAULT_GET_TOPIC_POLICY_TIMEOUT, TimeUnit.MILLISECONDS)
                 .create() : backoff;

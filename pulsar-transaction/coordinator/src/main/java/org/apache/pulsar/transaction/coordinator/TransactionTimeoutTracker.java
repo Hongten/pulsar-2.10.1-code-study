@@ -22,6 +22,7 @@ import com.google.common.annotations.Beta;
 import java.util.concurrent.CompletableFuture;
 
 /**
+ * // todo 服务端用于追踪超时的事务
  * Represent the tracker for the timeout of the transaction.
  */
 @Beta

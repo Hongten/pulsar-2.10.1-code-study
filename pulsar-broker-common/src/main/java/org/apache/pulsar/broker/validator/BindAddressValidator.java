@@ -72,6 +72,7 @@ public class BindAddressValidator {
      * Generates bind addresses based on legacy configuration properties.
      */
     private static List<BindAddress> migrateBindAddresses(ServiceConfiguration config) {
+        // TODO: 1/4/23 对broker上面配置的地址进行校验并返回
         List<BindAddress> addresses = new ArrayList<>(2);
         if (config.getBrokerServicePort().isPresent()) {
             addresses.add(new BindAddress(null, URI.create(

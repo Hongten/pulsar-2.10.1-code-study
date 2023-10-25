@@ -704,6 +704,7 @@ public class ManagedCursorImpl implements ManagedCursor {
         asyncReadEntries(numberOfEntriesToRead, NO_MAX_SIZE_LIMIT, callback, ctx, maxPosition);
     }
 
+    // TODO: 2/22/23 异步读取entries
     @Override
     public void asyncReadEntries(int numberOfEntriesToRead, long maxSizeBytes, ReadEntriesCallback callback,
                                  Object ctx, PositionImpl maxPosition) {
@@ -714,10 +715,13 @@ public class ManagedCursorImpl implements ManagedCursor {
             return;
         }
 
+        // TODO: 2/22/23 计算出可以读取的entry数量
         int numOfEntriesToRead = applyMaxSizeCap(numberOfEntriesToRead, maxSizeBytes);
 
         PENDING_READ_OPS_UPDATER.incrementAndGet(this);
+        // TODO: 2/22/23 构建OpReadEntry对象
         OpReadEntry op = OpReadEntry.create(this, readPosition, numOfEntriesToRead, callback, ctx, maxPosition);
+        // TODO: 2/22/23 异步读取Entries
         ledger.asyncReadEntries(op);
     }
 
@@ -836,6 +840,7 @@ public class ManagedCursorImpl implements ManagedCursor {
         asyncReadEntriesOrWait(numberOfEntriesToRead, NO_MAX_SIZE_LIMIT, callback, ctx, maxPosition);
     }
 
+    // TODO: 2/22/23 异步读取entry
     @Override
     public void asyncReadEntriesOrWait(int maxEntries, long maxSizeBytes, ReadEntriesCallback callback, Object ctx,
                                        PositionImpl maxPosition) {
@@ -845,15 +850,19 @@ public class ManagedCursorImpl implements ManagedCursor {
             return;
         }
 
+        // TODO: 2/22/23 计算出可以读取的entry数量
         int numberOfEntriesToRead = applyMaxSizeCap(maxEntries, maxSizeBytes);
 
+        // TODO: 2/22/23 是否有更多的entries
         if (hasMoreEntries()) {
+            // TODO: 2/22/23 直接读取
             // If we have available entries, we can read them immediately
             if (log.isDebugEnabled()) {
                 log.debug("[{}] [{}] Read entries immediately", ledger.getName(), name);
             }
             asyncReadEntries(numberOfEntriesToRead, callback, ctx, maxPosition);
         } else {
+            // TODO: 2/22/23 没有可用的entries
             OpReadEntry op = OpReadEntry.create(this, readPosition, numberOfEntriesToRead, callback,
                     ctx, maxPosition);
 
@@ -947,6 +956,7 @@ public class ManagedCursorImpl implements ManagedCursor {
         return WAITING_READ_OP_UPDATER.get(this) != null;
     }
 
+    // TODO: 2/22/23 是否有更多的entries
     @Override
     public boolean hasMoreEntries() {
         // If writer and reader are on the same ledger, we just need to compare the entry id to know if we have more
@@ -3210,11 +3220,13 @@ public class ManagedCursorImpl implements ManagedCursor {
         }, null);
     }
 
+    // TODO: 2/22/23 计算出可以读取的entry数量
     private int applyMaxSizeCap(int maxEntries, long maxSizeBytes) {
         if (maxSizeBytes == NO_MAX_SIZE_LIMIT) {
             return maxEntries;
         }
 
+        // TODO: 2/22/23 获取entry平均size
         double avgEntrySize = ledger.getStats().getEntrySizeAverage();
         if (!Double.isFinite(avgEntrySize)) {
             // We don't have yet any stats on the topic entries. Let's try to use the cursor avg size stats

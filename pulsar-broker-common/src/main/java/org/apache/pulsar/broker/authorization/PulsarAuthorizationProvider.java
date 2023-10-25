@@ -179,6 +179,7 @@ public class PulsarAuthorizationProvider implements AuthorizationProvider {
     public CompletableFuture<Boolean> canLookupAsync(TopicName topicName, String role,
             AuthenticationDataSource authenticationData) {
         CompletableFuture<Boolean> finalResult = new CompletableFuture<Boolean>();
+        // TODO: 2/23/23 生产权限校验
         canProduceAsync(topicName, role, authenticationData).whenComplete((produceAuthorized, ex) -> {
             if (ex == null) {
                 if (produceAuthorized) {
@@ -192,6 +193,7 @@ public class PulsarAuthorizationProvider implements AuthorizationProvider {
                             topicName.toString(), role, ex.getMessage());
                 }
             }
+            // TODO: 2/23/23 消费权限校验
             canConsumeAsync(topicName, role, authenticationData, null).whenComplete((consumeAuthorized, e)
                     -> {
                 if (e == null) {
@@ -435,6 +437,7 @@ public class PulsarAuthorizationProvider implements AuthorizationProvider {
                         log.debug("Policies node couldn't be found for topic : {}", topicName);
                     }
                 } else {
+                    // TODO: 2/23/23 如果role有权限访问namespace，那么就一定有权限访问topic ，所以先判断namespace权限
                     Map<String, Set<AuthAction>> namespaceRoles = policies.get().auth_policies
                             .getNamespaceAuthentication();
                     Set<AuthAction> namespaceActions = namespaceRoles.get(role);
@@ -615,6 +618,7 @@ public class PulsarAuthorizationProvider implements AuthorizationProvider {
         return validateTenantAdminAccess(namespaceName.getTenant(), role, authData);
     }
 
+    // TODO: 2/23/23 ACL检查 ，对应的role是否有对应的操作访问topic
     @Override
     public CompletableFuture<Boolean> allowTopicOperationAsync(TopicName topicName,
                                                                String role,
@@ -633,6 +637,7 @@ public class PulsarAuthorizationProvider implements AuthorizationProvider {
                     if (isSuperUserOrAdmin) {
                         return CompletableFuture.completedFuture(true);
                     } else {
+                        // TODO: 2/23/23 只实现了部分
                         switch (operation) {
                             case LOOKUP:
                             case GET_STATS:

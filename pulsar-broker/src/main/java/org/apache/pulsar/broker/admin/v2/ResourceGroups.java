@@ -57,7 +57,7 @@ public class ResourceGroups extends ResourceGroupsBase {
         return internalGetResourceGroup(resourcegroup);
     }
 
-    @PUT
+    @PUT // todo 创建和更新操作都在这里
     @Path("/{resourcegroup}")
     @ApiOperation(value = "Creates a new resourcegroup with the specified rate limiters")
     @ApiResponses(value = {@ApiResponse(code = 403, message = "Don't have admin permission"),

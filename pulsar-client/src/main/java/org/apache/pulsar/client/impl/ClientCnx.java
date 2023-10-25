@@ -212,6 +212,7 @@ public class ClientCnx extends PulsarHandler {
         this.authentication = conf.getAuthentication();
         this.eventLoopGroup = eventLoopGroup;
         this.maxNumberOfRejectedRequestPerConnection = conf.getMaxNumberOfRejectedRequestPerConnection();
+        // TODO: 10/23/23 客户端超时时间，默认为30s
         this.operationTimeoutMs = conf.getOperationTimeoutMs();
         this.state = State.None;
         this.protocolVersion = protocolVersion;
@@ -219,10 +220,14 @@ public class ClientCnx extends PulsarHandler {
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        // TODO: 10/18/23 与 broker 连接中，通道将激活，客户端将触发握手命令 
         super.channelActive(ctx);
+        // TODO: 10/18/23 客户端本地地址 
         this.localAddress = ctx.channel().localAddress();
+        // TODO: 10/18/23 远程broker地址 
         this.remoteAddress = ctx.channel().remoteAddress();
 
+        // TODO: 10/23/23 客户端超时时间，默认为30s
         this.timeoutTask = this.eventLoopGroup
                 .scheduleAtFixedRate(catchingAndLoggingThrowables(this::checkRequestTimeout), operationTimeoutMs,
                         operationTimeoutMs, TimeUnit.MILLISECONDS);
@@ -234,6 +239,8 @@ public class ClientCnx extends PulsarHandler {
         } else {
             log.info("{} Connected through proxy to target broker at {}", ctx.channel(), proxyToTargetBrokerAddress);
         }
+        // TODO: 10/18/23 发送连接命令，此命令两个主要功能
+        // TODO: 10/18/23 1。 拿到broker协议版本 2 。当通过代理连接broker时，提供目标 broker 地址
         // Send CONNECT command
         ctx.writeAndFlush(newConnectCommand())
                 .addListener(future -> {
@@ -314,6 +321,7 @@ public class ClientCnx extends PulsarHandler {
 
     @Override
     protected void handleConnected(CommandConnected connected) {
+        // TODO: 10/18/23 处理已连接应答，意味着完成连接建立
         checkArgument(state == State.SentConnectFrame || state == State.Connecting);
         if (connected.hasMaxMessageSize()) {
             if (log.isDebugEnabled()) {
@@ -327,6 +335,7 @@ public class ClientCnx extends PulsarHandler {
         if (log.isDebugEnabled()) {
             log.debug("{} Connection is ready", ctx.channel());
         }
+        // TODO: 10/18/23 设置远程服务器（broker）协议版本，并设置连接完成标志，意味着完成连接
         // set remote protocol version to the correct version before we complete the connection future
         setRemoteEndpointProtocolVersion(connected.getProtocolVersion());
         connectionFuture.complete(null);
@@ -382,6 +391,7 @@ public class ClientCnx extends PulsarHandler {
         }
     }
 
+    // TODO: 10/23/23 处理 broker 返回应答成功
     @Override
     protected void handleSendReceipt(CommandSendReceipt sendReceipt) {
         checkArgument(state == State.Ready);
@@ -408,6 +418,7 @@ public class ClientCnx extends PulsarHandler {
 
         ProducerImpl<?> producer = producers.get(producerId);
         if (producer != null) {
+            // TODO: 10/23/23 找到生产者，处理 broker 应答（也就是回执）
             producer.ackReceived(this, sequenceId, highestSequenceId, ledgerId, entryId);
         } else {
             if (log.isDebugEnabled()) {
@@ -659,6 +670,7 @@ public class ClientCnx extends PulsarHandler {
         return result;
     }
 
+    // TODO: 10/23/23 客户端处理发送error
     @Override
     protected void handleSendError(CommandSendError sendError) {
         log.warn("{} Received send error from server: {} : {}", ctx.channel(), sendError.getError(),
@@ -668,6 +680,7 @@ public class ClientCnx extends PulsarHandler {
         long sequenceId = sendError.getSequenceId();
 
         switch (sendError.getError()) {
+            // TODO: 10/23/23 校验和错误，客户端将尝试跟原来的校验和对比，如果匹配则重发，否则忽略。
         case ChecksumError:
             producers.get(producerId).recoverChecksumError(this, sequenceId);
             break;
@@ -680,6 +693,7 @@ public class ClientCnx extends PulsarHandler {
             break;
 
         default:
+            // TODO: 10/23/23 默认情况下，作为短暂的（未知的）错误，关闭连接，（让客户端自动）重连
             // By default, for transient error, let the reconnection logic
             // to take place and re-establish the produce again
             ctx.close();
@@ -1155,15 +1169,19 @@ public class ClientCnx extends PulsarHandler {
        }
     }
 
+    // TODO: 10/23/23 ClientCnx 内 检查超时请求，用于注册生产者、查找请求等
     private void checkRequestTimeout() {
+        // TODO: 10/23/23 循环
         while (!requestTimeoutQueue.isEmpty()) {
             RequestTime request = requestTimeoutQueue.peek();
             if (request == null || !request.isTimedOut(operationTimeoutMs)) {
+                // TODO: 10/23/23  如果没有请求超时则退出循环。
                 // if there is no request that is timed out then exit the loop
                 break;
             }
             request = requestTimeoutQueue.poll();
             TimedCompletableFuture<?> requestFuture = pendingRequests.get(request.requestId);
+            // TODO: 10/23/23 尝试设置请求为超时异常
             if (requestFuture != null
                     && !requestFuture.hasGotResponse()) {
                 pendingRequests.remove(request.requestId, requestFuture);

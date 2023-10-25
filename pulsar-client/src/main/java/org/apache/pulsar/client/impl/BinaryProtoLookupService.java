@@ -83,6 +83,7 @@ public class BinaryProtoLookupService implements LookupService {
     }
 
     /**
+     * TCP实现
      * Calls broker binaryProto-lookup api to find broker-service address which can serve a given topic.
      *
      * @param topicName
@@ -90,6 +91,7 @@ public class BinaryProtoLookupService implements LookupService {
      * @return broker-socket-address that serves given topic
      */
     public CompletableFuture<Pair<InetSocketAddress, InetSocketAddress>> getBroker(TopicName topicName) {
+        // TODO: 10/18/23 域名解析到对应的IP地址信息
         return findBroker(serviceNameResolver.resolveHost(), false, topicName, 0);
     }
 
@@ -111,10 +113,14 @@ public class BinaryProtoLookupService implements LookupService {
             return addressFuture;
         }
 
+        // TODO: 10/18/23 连接池连接目标IP地址
         client.getCnxPool().getConnection(socketAddress).thenAccept(clientCnx -> {
             long requestId = client.newRequestId();
+            // TODO: 10/18/23 连接成功，发送 Lookup 命令
             ByteBuf request = Commands.newLookup(topicName.toString(), listenerName, authoritative, requestId);
+            // TODO: 10/18/23 发送LOOKUP命名
             clientCnx.newLookup(request, requestId).whenComplete((r, t) -> {
+                // TODO: 10/18/23 发送失败处理
                 if (t != null) {
                     // lookup failed
                     log.warn("[{}] failed to send lookup request : {}", topicName.toString(), t.getMessage());
@@ -124,8 +130,10 @@ public class BinaryProtoLookupService implements LookupService {
 
                     addressFuture.completeExceptionally(t);
                 } else {
+                    // TODO: 10/18/23 成功返回
                     URI uri = null;
                     try {
+                        // TODO: 10/18/23 (1) 通过查找应答数据，连接Url
                         // (1) build response broker-address
                         if (useTls) {
                             uri = new URI(r.brokerUrlTls);
@@ -137,6 +145,7 @@ public class BinaryProtoLookupService implements LookupService {
                         InetSocketAddress responseBrokerAddress =
                                 InetSocketAddress.createUnresolved(uri.getHost(), uri.getPort());
 
+                        // TODO: 10/18/23 (2) 如果查找应答命令需要重定向，则重定向新地址，继续查找 broker 地址
                         // (2) redirect to given address if response is: redirect
                         if (r.redirect) {
                             findBroker(responseBrokerAddress, r.authoritative, topicName, redirectCount + 1)
@@ -155,23 +164,28 @@ public class BinaryProtoLookupService implements LookupService {
                                 return null;
                             });
                         } else {
+                            // TODO: 10/18/23 (3) 查看是否通过 proxy 连接 
                             // (3) received correct broker to connect
                             if (r.proxyThroughServiceUrl) {
+                                // TODO: 10/18/23 通过 proxy 连接 
                                 // Connect through proxy
                                 addressFuture.complete(Pair.of(responseBrokerAddress, socketAddress));
                             } else {
+                                // TODO: 10/18/23 正常情况直连 broker ， 逻辑地址和物理地址都是broker的ip地址
                                 // Normal result with direct connection to broker
                                 addressFuture.complete(Pair.of(responseBrokerAddress, responseBrokerAddress));
                             }
                         }
 
                     } catch (Exception parseUrlException) {
+                        // TODO: 10/18/23 url解析失败异常处理
                         // Failed to parse url
                         log.warn("[{}] invalid url {} : {}", topicName.toString(), uri, parseUrlException.getMessage(),
                             parseUrlException);
                         addressFuture.completeExceptionally(parseUrlException);
                     }
                 }
+                // TODO: 10/18/23 连接回收到连接池
                 client.getCnxPool().releaseConnection(clientCnx);
             });
         }).exceptionally(connectionException -> {

@@ -27,12 +27,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class ConnectionHandler {
+    // TODO: 10/18/23 用于原子更新ClientCnx
     private static final AtomicReferenceFieldUpdater<ConnectionHandler, ClientCnx> CLIENT_CNX_UPDATER =
             AtomicReferenceFieldUpdater.newUpdater(ConnectionHandler.class, ClientCnx.class, "clientCnx");
+    // TODO: 10/18/23 封装底层的客户端控制上下文，是实际的处理网络连接的
     @SuppressWarnings("unused")
     private volatile ClientCnx clientCnx = null;
 
+    // TODO: 10/18/23 客户端句柄状态
     protected final HandlerState state;
+    // TODO: 10/18/23 用于自动重连的时间组件
     protected final Backoff backoff;
     private static final AtomicLongFieldUpdater<ConnectionHandler> EPOCH_UPDATER = AtomicLongFieldUpdater
             .newUpdater(ConnectionHandler.class, "epoch");
@@ -40,6 +44,7 @@ public class ConnectionHandler {
     private volatile long epoch = -1L;
     protected volatile long lastConnectionClosedTimestamp = 0L;
 
+    // TODO: 10/18/23 connection 用于回调 
     interface Connection {
         void connectionFailed(PulsarClientException exception);
         void connectionOpened(ClientCnx cnx);
@@ -48,19 +53,24 @@ public class ConnectionHandler {
     protected Connection connection;
 
     protected ConnectionHandler(HandlerState state, Backoff backoff, Connection connection) {
+        // TODO: 2/24/23 由于ProducerImpl实现了ConnectionHandler.Connection，并且继承了HandlerState，
+        //  因此this本身就有HandlerState，Connection功能
         this.state = state;
         this.connection = connection;
         this.backoff = backoff;
         CLIENT_CNX_UPDATER.set(this, null);
     }
 
+    // TODO: 2/24/23 查找topic所在的broker地址，然后建立到broker的连接
     protected void grabCnx() {
+        // TODO: 10/18/23 如果ClientCnx不为空，则直接返回，因为已经设置过了，这时候就忽略重连请求
         if (CLIENT_CNX_UPDATER.get(this) != null) {
             log.warn("[{}] [{}] Client cnx already set, ignoring reconnection request",
                     state.topic, state.getHandlerName());
             return;
         }
 
+        // TODO: 10/18/23 判定下是否能重连，只有Uninitialized、Connecting、Ready才能重连
         if (!isValidStateForReconnection()) {
             // Ignore connection closed when we are shutting down
             log.info("[{}] [{}] Ignoring reconnection request (state: {})",
@@ -68,9 +78,11 @@ public class ConnectionHandler {
             return;
         }
 
+        // TODO: 10/18/23 这时候，客户端开始获取连接 ， 如果连接发送异常，则延后重连
         try {
-            state.client.getConnection(state.topic) //
-                    .thenAccept(cnx -> connection.connectionOpened(cnx)) //
+            state.client.getConnection(state.topic) // TODO: 2/24/23 和broker创建连接
+                    // TODO: 10/18/23 如果连接成功，则执行 Connection 接口中的 connectionOpened 方法
+                    .thenAccept(cnx -> connection.connectionOpened(cnx)) // TODO: 2/24/23  发送PRODUCER请求到broker，进行broker端Producer的初始化
                     .exceptionally(this::handleConnectionError);
         } catch (Throwable t) {
             log.warn("[{}] [{}] Exception thrown while getting connection: ", state.topic, state.getHandlerName(), t);

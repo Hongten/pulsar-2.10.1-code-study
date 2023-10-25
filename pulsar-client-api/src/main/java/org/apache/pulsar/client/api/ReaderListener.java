@@ -28,6 +28,7 @@ import org.apache.pulsar.common.classification.InterfaceStability;
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public interface ReaderListener<T> extends Serializable {
+    // TODO: 2/13/23 当生产者生产一条消息到内部topic的时候，消费者可以自动调用该方法进行消费
     /**
      * This method is called whenever a new message is received.
      *

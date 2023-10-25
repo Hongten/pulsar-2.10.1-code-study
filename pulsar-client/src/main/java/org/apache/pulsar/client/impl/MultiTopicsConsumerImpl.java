@@ -71,6 +71,7 @@ import org.apache.pulsar.common.util.FutureUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// TODO: 2/22/23 是ConsumerImpl的增强版，当消费partitionedTopic时，会有多个分区，此时会创建MultiTopicsConsumerImpl用于消费
 public class MultiTopicsConsumerImpl<T> extends ConsumerBase<T> {
 
     public static final String DUMMY_TOPIC_NAME_PREFIX = "MultiTopicsConsumer-";
@@ -763,6 +764,7 @@ public class MultiTopicsConsumerImpl<T> extends ConsumerBase<T> {
     public CompletableFuture<Void> seekAsync(MessageId messageId) {
         MessageIdImpl targetMessageId = MessageIdImpl.convertToMessageIdImpl(messageId);
         if (targetMessageId == null || isIllegalMultiTopicsMessageId(messageId)) {
+            // todo 目前只支持 earliest 和 latest。即 consumer.seek(MessageId.earliest); consumer.seek(MessageId.latest);
             return FutureUtil.failedFuture(
                     new PulsarClientException("Illegal messageId, messageId can only be earliest/latest")
             );
@@ -1459,6 +1461,7 @@ public class MultiTopicsConsumerImpl<T> extends ConsumerBase<T> {
 
     private static final Logger log = LoggerFactory.getLogger(MultiTopicsConsumerImpl.class);
 
+    // todo 目前只支持 earliest 和 latest。即 consumer.seek(MessageId.earliest); consumer.seek(MessageId.latest);
     public static boolean isIllegalMultiTopicsMessageId(MessageId messageId) {
         //only support earliest/latest
         return !MessageId.earliest.equals(messageId) && !MessageId.latest.equals(messageId);

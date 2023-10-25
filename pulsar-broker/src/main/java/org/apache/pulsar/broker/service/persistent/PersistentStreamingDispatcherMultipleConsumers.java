@@ -36,6 +36,7 @@ import org.apache.pulsar.broker.service.streamingdispatch.PendingReadEntryReques
 import org.apache.pulsar.broker.service.streamingdispatch.StreamingDispatcher;
 import org.apache.pulsar.broker.service.streamingdispatch.StreamingEntryReader;
 
+// TODO: 2/22/23 订阅可以被多个消费者消费，并且开启了streaming
 /**
  * A {@link PersistentDispatcherMultipleConsumers} implemented {@link StreamingDispatcher}.
  * It'll use {@link StreamingEntryReader} to read new entries instead read as micro batch from managed ledger.

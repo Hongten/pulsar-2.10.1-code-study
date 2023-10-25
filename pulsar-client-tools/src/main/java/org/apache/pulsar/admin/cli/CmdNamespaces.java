@@ -386,6 +386,7 @@ public class CmdNamespaces extends CmdBase {
         @Parameter(description = "tenant/namespace", required = true)
         private java.util.List<String> params;
 
+        // TODO: 1/18/23 设置namespace上面的ttl
         @Parameter(names = { "--messageTTL", "-ttl" }, description = "Message TTL in seconds. "
                 + "When the value is set to `0`, TTL is disabled.", required = true)
         private int messageTTL;
@@ -903,18 +904,26 @@ public class CmdNamespaces extends CmdBase {
         @Parameter(names = { "--msg-dispatch-rate",
                 "-md" }, description = "message-dispatch-rate "
                 + "(default -1 will be overwrite if not passed)", required = false)
+        // todo 默认值为-1
         private int msgDispatchRate = -1;
 
         @Parameter(names = { "--byte-dispatch-rate",
                 "-bd" }, description = "byte-dispatch-rate "
                 + "(default -1 will be overwrite if not passed)", required = false)
+        // todo 默认为-1， 如果我们设置1MB/s, 则消费流量会被限制在1MB/s（注：这里是每一个partition topic的流量限制，
+        //  如果一个topic有5个partition，那么，这个topic的流量限制为5MB/s
         private long byteDispatchRate = -1;
 
         @Parameter(names = { "--dispatch-rate-period",
                 "-dt" }, description = "dispatch-rate-period in second type "
                 + "(default 1 second will be overwrite if not passed)", required = false)
+        // todo 默认为1s
         private int dispatchRatePeriodSec = 1;
 
+        // todo 这个值默认为FALSE，如果设置为TRUE，则它会动态更新消费速率。
+        //  可以理解为当生产速率增加的时候，那么动态调整消费速率来保障消费job的速率，避免消费不及的消息积压问题.
+        //  但是需要指出的是，这样设置会给pulsar集群带来危险，可能把集群打卦，失去了消费端限流的意义。
+        // todo throttle-dispatch-rate = (publish-rate + configured dispatch-rate)
         @Parameter(names = { "--relative-to-publish-rate",
                 "-rp" }, description = "dispatch rate relative to publish-rate (if publish-relative flag is enabled "
                 + "then broker will apply throttling value to (publish-rate + dispatch rate))", required = false)
@@ -922,7 +931,9 @@ public class CmdNamespaces extends CmdBase {
 
         @Override
         void run() throws PulsarAdminException {
+            // todo 验证namespace是否合法
             String namespace = validateNamespace(params);
+            // todo 在namespace上面设在对应的消费流量限制quota
             getAdmin().namespaces().setDispatchRate(namespace,
                     DispatchRate.builder()
                             .dispatchThrottlingRateInMsg(msgDispatchRate)
@@ -945,6 +956,7 @@ public class CmdNamespaces extends CmdBase {
         }
     }
 
+    // todo 获取dispatch rate
     @Parameters(commandDescription = "Get configured message-dispatch-rate for all topics of the namespace "
             + "(Disabled if value < 0)")
     private class GetDispatchRate extends CliCommand {
@@ -2483,6 +2495,7 @@ public class CmdNamespaces extends CmdBase {
 
     @Parameters(commandDescription = "Set ResourceGroup for a namespace")
     private class SetResourceGroup extends CliCommand {
+        // todo 给namespace设置一个resource group
         @Parameter(description = "tenant/namespace", required = true)
         private java.util.List<String> params;
 
@@ -2543,6 +2556,7 @@ public class CmdNamespaces extends CmdBase {
         jcommander.addCommand("set-persistence", new SetPersistence());
         jcommander.addCommand("remove-persistence", new RemovePersistence());
 
+        // TODO: 1/18/23 获取和设置TTL
         jcommander.addCommand("get-message-ttl", new GetMessageTTL());
         jcommander.addCommand("set-message-ttl", new SetMessageTTL());
         jcommander.addCommand("remove-message-ttl", new RemoveMessageTTL());

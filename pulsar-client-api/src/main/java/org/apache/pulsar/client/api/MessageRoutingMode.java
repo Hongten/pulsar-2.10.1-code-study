@@ -30,6 +30,7 @@ import org.apache.pulsar.common.classification.InterfaceStability;
 @InterfaceAudience.Public
 @InterfaceStability.Stable
 public enum MessageRoutingMode {
+    // TODO: 10/17/23 消息路由策略
     /**
      * If no key is provided, The partitioned producer will randomly pick one single partition
      * and publish all the messages into that partition.

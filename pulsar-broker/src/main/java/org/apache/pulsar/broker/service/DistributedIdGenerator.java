@@ -55,6 +55,7 @@ public class DistributedIdGenerator {
         log.info("Broker distributed id generator started with instance id {}-{}", prefix, generatorInstanceId);
     }
 
+    // TODO: 2/23/23 生产唯一的id str
     public String getNextId() {
         return String.format("%s-%d-%d", prefix, generatorInstanceId, counter.getAndIncrement());
     }

@@ -69,6 +69,7 @@ public abstract class BaseResource {
 
     public Builder request(final WebTarget target) throws PulsarAdminException {
         try {
+            // todo 请求并等待结果返回
             return requestAsync(target).get();
         } catch (Exception e) {
             throw new GettingAuthenticationDataException(e);
@@ -80,6 +81,7 @@ public abstract class BaseResource {
         CompletableFuture<Builder> builderFuture = new CompletableFuture<>();
         CompletableFuture<Map<String, String>> authFuture = new CompletableFuture<>();
         try {
+            // todo 认证相关
             AuthenticationDataProvider authData = auth.getAuthData(target.getUri().getHost());
 
             if (authData.hasDataForHttp()) {
@@ -90,16 +92,19 @@ public abstract class BaseResource {
 
             // auth complete, return a new Builder
             authFuture.whenComplete((respHeaders, ex) -> {
+                // todo 认证失败后返回
                 if (ex != null) {
                     log.warn("[{}] Failed to perform http request at auth stage: {}", target.getUri(),
                         ex.getMessage());
                     builderFuture.completeExceptionally(new PulsarClientException(ex));
                     return;
                 }
-
+                // todo 只有认证成功后，才进入下面
+                // todo 构建一个builder
                 try {
                     Builder builder = target.request(MediaType.APPLICATION_JSON);
                     if (authData.hasDataForHttp()) {
+                        // todo 获取header信息
                         Set<Entry<String, String>> headers =
                             auth.newRequestHeader(target.getUri().toString(), authData, respHeaders);
                         if (headers != null) {
@@ -144,6 +149,7 @@ public abstract class BaseResource {
     public <T> CompletableFuture<Void> asyncPostRequest(final WebTarget target, Entity<T> entity) {
         final CompletableFuture<Void> future = new CompletableFuture<>();
         try {
+            // todo 以异步方式提交
             request(target).async().post(entity, new InvocationCallback<ErrorData>() {
 
                 @Override
@@ -289,6 +295,7 @@ public abstract class BaseResource {
 
     protected <T> T sync(Supplier<CompletableFuture<T>> executor) throws PulsarAdminException {
         try {
+            // todo readTimeoutMs=60*1000
             return executor.get().get(this.readTimeoutMs, TimeUnit.MILLISECONDS);
         } catch (ExecutionException e) {
            throw (PulsarAdminException) e.getCause();

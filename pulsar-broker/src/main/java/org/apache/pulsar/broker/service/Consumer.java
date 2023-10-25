@@ -92,6 +92,7 @@ public class Consumer {
     private long lastAckedTimestamp;
     private Rate chunkedMessageRate;
 
+    // TODO: 2/22/23 每个消费者都会维护这个message permits
     // Represents how many messages we can safely send to the consumer without
     // overflowing its receiving queue. The consumer will use Flow commands to
     // increase its availability
@@ -237,6 +238,7 @@ public class Consumer {
                 totalChunkedMessages, redeliveryTracker, DEFAULT_CONSUMER_EPOCH);
     }
 
+    // TODO: 2/22/23 从broker发送消息到consumer客户端
     /**
      * Dispatch a list of entries to the consumer. <br/>
      * <b>It is also responsible to release entries data and recycle entries object.</b>
@@ -267,6 +269,7 @@ public class Consumer {
         // Must ensure that the message is written to the pendingAcks before sent is first, because this consumer
         // is possible to disconnect at this time.
         if (pendingAcks != null) {
+            // TODO: 2/22/23 把消息先写入到pendingAcks里面
             for (int i = 0; i < entries.size(); i++) {
                 Entry entry = entries.get(i);
                 if (entry != null) {
@@ -276,6 +279,7 @@ public class Consumer {
                     if (ackSet != null) {
                         unackedMessages -= (batchSize - BitSet.valueOf(ackSet).cardinality());
                     }
+                    // TODO: 2/22/23 放入到pendingAcks等待acks 
                     pendingAcks.put(entry.getLedgerId(), entry.getEntryId(), batchSize, stickyKeyHash);
                     if (log.isDebugEnabled()) {
                         log.debug("[{}-{}] Added {}:{} ledger entry with batchSize of {} to pendingAcks in"
@@ -310,7 +314,7 @@ public class Consumer {
         bytesOutCounter.add(totalBytes);
         chunkedMessageRate.recordMultipleEvents(totalChunkedMessages, 0);
 
-
+        // TODO: 2/22/23 发送消息给consumer客户端
         return cnx.getCommandSender().sendMessagesToConsumer(consumerId, topicName, subscription, partitionIdx,
                 entries, batchSizes, batchIndexesAcks, redeliveryTracker, epoch);
     }

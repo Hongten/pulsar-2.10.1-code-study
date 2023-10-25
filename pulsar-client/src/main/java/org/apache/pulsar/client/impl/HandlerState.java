@@ -21,8 +21,11 @@ package org.apache.pulsar.client.impl;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import java.util.function.UnaryOperator;
 
+// TODO: 2/23/23 状态机, 用于管理生产者状态，并且持有Topic和PulsarClient实例
 abstract class HandlerState {
+    // TODO: 10/18/23 pulsar 客户端实例
     protected final PulsarClientImpl client;
+    // TODO: 10/18/23 topic实例
     protected final String topic;
 
     private static final AtomicReferenceFieldUpdater<HandlerState, State> STATE_UPDATER =
@@ -46,6 +49,7 @@ abstract class HandlerState {
     public HandlerState(PulsarClientImpl client, String topic) {
         this.client = client;
         this.topic = topic;
+        // TODO: 2/24/23 当ProducerImpl创建的时候，此时状态为 Uninitialized
         STATE_UPDATER.set(this, State.Uninitialized);
     }
 

@@ -49,29 +49,31 @@ public class CmdResourceGroups extends CmdBase {
     }
     @Parameters(commandDescription = "Creates a new resourcegroup")
     private class Create extends CliCommand {
+        // todo 创建一个resourcegroup 命令格式为：
+        //  bin/pulsar-admin resourcegroups create pulsar_default_publish_byte_rate --byte-publish-rate 20971520
         @Parameter(description = "resourcegroup-name", required = true)
         private java.util.List<String> params;
 
         @Parameter(names = { "--msg-publish-rate",
                 "-mp" }, description = "message-publish-rate "
                 + "(default -1 will be overwrite if not passed)", required = false)
-        private Integer publishRateInMsgs;
+        private Integer publishRateInMsgs; // todo 生产msg数量速率
 
         @Parameter(names = { "--byte-publish-rate",
                 "-bp" }, description = "byte-publish-rate "
                 + "(default -1 will be overwrite if not passed)", required = false)
-        private Long publishRateInBytes;
+        private Long publishRateInBytes; // todo 生产msg大小速率
 
 
         @Parameter(names = { "--msg-dispatch-rate",
                 "-md" }, description = "message-dispatch-rate "
                 + "(default -1 will be overwrite if not passed)", required = false)
-        private Integer dispatchRateInMsgs;
+        private Integer dispatchRateInMsgs; // todo 消费msg数量速率 虽然设置了这个值，但是对消费端没有影响
 
         @Parameter(names = { "--byte-dispatch-rate",
                 "-bd" }, description = "byte-dispatch-rate "
                 + "(default -1 will be overwrite if not passed)", required = false)
-        private Long dispatchRateInBytes;
+        private Long dispatchRateInBytes; // todo 消费msg 大小速率 虽然设置了这个值，但是对消费端没有影响
 
         @Override
         void run() throws PulsarAdminException {

@@ -52,6 +52,12 @@ import org.slf4j.LoggerFactory;
  *
  * @see PulsarService
  */
+// TODO: 2/9/23 在broker启动的时候，会创建 ResourceGroupService 一个实例。ResourceGroupService在初始化的时候，会启动定期任务
+//  aggregateLocalUsagePeriodicTask: 负责定期聚合所有已知BrokerService的流量使用情况，会周期性的执行aggregateResourceGroupLocalUsages方法，
+//                                   针对生产消费两种行为。aggregateResourceGroupLocalUsages会调用updateStatsWithDiff方法，
+//                                   找出最新更新的统计数据，若有差异则更新统计数据
+//  calculateQuotaPeriodicTask: 负责定期计算所有ResourceGroup的更新的流量配额，周期性地执行calculateQuotaForAllResourceGroups方法。
+//                              其内部的computeLocalQuota方法会根据配置值和实际值计算本地的流量配额。
 public class ResourceGroupService {
     /**
      * Default constructor.
@@ -59,8 +65,11 @@ public class ResourceGroupService {
     public ResourceGroupService(PulsarService pulsar) {
         this.pulsar = pulsar;
         this.timeUnitScale = TimeUnit.SECONDS;
+        // todo 计算quota的实现
         this.quotaCalculator = new ResourceQuotaCalculatorImpl();
+        // todo resourceUsageTransportManager 初始化。在broker启动的时候初始化的
         this.resourceUsageTransportManagerMgr = pulsar.getResourceUsageTransportManager();
+        // todo 创建resourcegroup listener。加载所有的resourcegroup，并实例化到缓存。然后把namespace和resourcegroup绑定在一起
         this.rgConfigListener = new ResourceGroupConfigListener(this, pulsar);
         this.initialize();
     }
@@ -99,7 +108,9 @@ public class ResourceGroupService {
     public void resourceGroupCreate(String rgName, org.apache.pulsar.common.policies.data.ResourceGroup rgConfig)
       throws PulsarAdminException {
         this.checkRGCreateParams(rgName, rgConfig);
+        // TODO: 2/10/23 创建一个resourcegroup对象
         ResourceGroup rg = new ResourceGroup(this, rgName, rgConfig);
+        // todo 放入到cache 里面
         resourceGroupsMap.put(rgName, rg);
     }
 
@@ -126,6 +137,7 @@ public class ResourceGroupService {
             return null;
         }
 
+        // TODO: 2/9/23 这里为啥要不直接返回呢？
         // Return a copy.
         return new ResourceGroup(retrievedRG);
     }
@@ -166,6 +178,8 @@ public class ResourceGroupService {
 
         long tenantRefCount = rg.getResourceGroupNumOfTenantRefs();
         long nsRefCount = rg.getResourceGroupNumOfNSRefs();
+        // todo 如果被删除的RG还存在引用，则抛出异常，
+        //  是否可以直接删除引用呢？
         if ((tenantRefCount + nsRefCount) > 0) {
             String errMesg = "Resource group " + name + " still has " + tenantRefCount + " tenant refs";
             errMesg += " and " + nsRefCount + " namespace refs on it";
@@ -174,6 +188,7 @@ public class ResourceGroupService {
 
         rg.resourceGroupPublishLimiter.close();
         rg.resourceGroupPublishLimiter = null;
+        // todo 移除操作
         resourceGroupsMap.remove(name);
     }
 
@@ -184,6 +199,7 @@ public class ResourceGroupService {
         return resourceGroupsMap.mappingCount();
     }
 
+    // TODO: 2/9/23 没有任何地方使用这个方法 
     /**
      * Registers a tenant as a user of a resource group.
      *
@@ -263,6 +279,7 @@ public class ResourceGroupService {
             throw new PulsarAdminException(errMesg);
         }
 
+        // todo 注册成功后，把namespace，resourcegroup放入到缓存
         // Associate this NS-name with the RG.
         this.namespaceToRGsMap.put(fqNamespaceName, rg);
         rgNamespaceRegisters.labels(resourceGroupName).inc();
@@ -279,6 +296,7 @@ public class ResourceGroupService {
             throws PulsarAdminException {
         ResourceGroup rg = checkResourceGroupExists(resourceGroupName);
 
+        // todo 移除和添加操作刚刚相反
         ResourceGroupOpStatus status = rg.registerUsage(fqNamespaceName.toString(), ResourceGroupRefTypes.Namespaces,
                 false, this.resourceUsageTransportManagerMgr);
         if (status == ResourceGroupOpStatus.DoesNotExist) {
@@ -325,6 +343,7 @@ public class ResourceGroupService {
                                   ResourceGroupMonitoringClass monClass,
                                   BytesAndMessagesCount incStats) throws PulsarAdminException {
         final ResourceGroup nsRG = this.namespaceToRGsMap.get(NamespaceName.get(tenantName, nsName));
+        // TODO: 2/9/23 没有使用这个resourcegroup，因此为null
         final ResourceGroup tenantRG = this.tenantToRGsMap.get(tenantName);
         if (tenantRG == null && nsRG == null) {
             return false;
@@ -352,7 +371,9 @@ public class ResourceGroupService {
             rgLocalUsageBytes.labels(tenantRG.resourceGroupName, monClass.name()).inc(incStats.bytes);
         }
         if (nsRG != null) {
+            // TODO: 2/14/23 对namespace 的RG进行更新该broker的网络使用情况
             nsRG.incrementLocalUsageStats(monClass, incStats);
+            // TODO: 2/14/23 metrics采集
             rgLocalUsageMessages.labels(nsRG.resourceGroupName, monClass.name()).inc(incStats.messages);
             rgLocalUsageBytes.labels(nsRG.resourceGroupName, monClass.name()).inc(incStats.bytes);
         }
@@ -403,6 +424,7 @@ public class ResourceGroupService {
         return rg;
     }
 
+    // TODO: 2/9/23 找出最新更新的统计数据，若有差异则更新统计信息
     // Find the difference between the last time stats were updated for this topic, and the current
     // time. If the difference is positive, update the stats.
     private void updateStatsWithDiff(String topicName, String tenantString, String nsString,
@@ -430,6 +452,7 @@ public class ResourceGroupService {
         bmNewCount.messages = accMesgCount;
 
         bmOldCount = hm.get(topicName);
+        // TODO: 2/9/23 第一次，由于hm里面为空，差值即为新值。如果已经存在数据，差值即为旧数据与新数据之差
         if (bmOldCount == null) {
             bmDiff.bytes = bmNewCount.bytes;
             bmDiff.messages = bmNewCount.messages;
@@ -438,11 +461,14 @@ public class ResourceGroupService {
             bmDiff.messages = bmNewCount.messages - bmOldCount.messages;
         }
 
+        // todo 如果是大于0的差值，才会更新。也意味着只要新数据一直小于旧数据，一直不会更新
+        // TODO: 2/9/23 这里可以优化为最大值查找，第一次：max(0, bmNewCount). 以后：max(bmNewCount, bmOldCount),然后和bmOldCount进行比较即可
         if (bmDiff.bytes <= 0 || bmDiff.messages <= 0) {
             return;
         }
 
         try {
+            // TODO: 2/14/23 这里为增量操作
             boolean statsUpdated = this.incrementUsage(tenantString, nsString, monClass, bmDiff);
             if (log.isDebugEnabled()) {
                 log.debug("updateStatsWithDiff for topic={}: monclass={} statsUpdated={} for tenant={}, namespace={}; "
@@ -450,6 +476,7 @@ public class ResourceGroupService {
                         topicName, monClass, statsUpdated, tenantString, nsString,
                         bmDiff.bytes, bmDiff.messages);
             }
+            // TODO: 2/9/23 如果是第一次，会把数据添加进入hm。如果是后面，则满足条件后进行更新
             hm.put(topicName, bmNewCount);
         } catch (Throwable t) {
             log.error("updateStatsWithDiff: got ex={} while aggregating for {} side",
@@ -522,33 +549,44 @@ public class ResourceGroupService {
         return rgQuotaCalculationLatency.get();
     }
 
+    // TODO: 2/9/23 aggregateLocalUsagePeriodicTask: 负责定期聚合所有已知BrokerService的流量使用情况，会周期性的执行aggregateResourceGroupLocalUsages方法，
+    //        //                                   针对生产消费两种行为。aggregateResourceGroupLocalUsages会调用updateStatsWithDiff方法，
+    //        //                                   找出最新更新的统计数据，若有差异则更新统计数据
     // Periodically aggregate the usage from all topics known to the BrokerService.
     // Visibility for unit testing.
-    protected void aggregateResourceGroupLocalUsages() {
+    protected void aggregateResourceGroupLocalUsages() { // todo 聚合操作
+        // todo 获取起始时间
         final Summary.Timer aggrUsageTimer = rgUsageAggregationLatency.startTimer();
         BrokerService bs = this.pulsar.getBrokerService();
+        // todo <topicName, TopicStatsImpl> TopicStatsImpl包含topic所有的状态信息
         Map<String, TopicStatsImpl> topicStatsMap = bs.getTopicStats();
 
         for (Map.Entry<String, TopicStatsImpl> entry : topicStatsMap.entrySet()) {
+            // TODO: 2/9/23 topic名称
             final String topicName = entry.getKey();
+            // TODO: 2/9/23 topic的状态信息
             final TopicStats topicStats = entry.getValue();
-            final TopicName topic = TopicName.get(topicName);
-            final String tenantString = topic.getTenant();
+            final TopicName topic = TopicName.get(topicName); // todo 获取topicName对象
+            final String tenantString = topic.getTenant(); // todo 获取租户
             final String nsString = topic.getNamespacePortion();
-            final NamespaceName fqNamespace = topic.getNamespaceObject();
+            // final String nsString1 = topic.getNamespace(); // todo 为什么不适用这个呢？
+            final NamespaceName fqNamespace = topic.getNamespaceObject(); // todo 获取命名空间对象
 
             // Can't use containsKey here, as that checks for exact equality
             // (we need a check for string-comparison).
-            val tenantRG = this.tenantToRGsMap.get(tenantString);
+            val tenantRG = this.tenantToRGsMap.get(tenantString); // todo 目前在pulsar-admin 里面没有租户关于设置RG的选项
+            // TODO: 2/9/23 目前我们配置的resourcegroup都是在namespace上面
             val namespaceRG = this.namespaceToRGsMap.get(fqNamespace);
             if (tenantRG == null && namespaceRG == null) {
                 // This topic's NS/tenant are not registered to any RG.
                 continue;
             }
 
+            // TODO: 2/9/23 生产行为统计
             this.updateStatsWithDiff(topicName, tenantString, nsString,
                     topicStats.getBytesInCounter(), topicStats.getMsgInCounter(),
                     ResourceGroupMonitoringClass.Publish);
+            // TODO: 2/9/23 消费行为统计
             this.updateStatsWithDiff(topicName, tenantString, nsString,
                     topicStats.getBytesOutCounter(), topicStats.getMsgOutCounter(),
                     ResourceGroupMonitoringClass.Dispatch);
@@ -558,17 +596,20 @@ public class ResourceGroupService {
             log.debug("aggregateResourceGroupLocalUsages took {} milliseconds", diffTimeSeconds * 1000);
         }
 
+        // TODO: 2/9/23 由于我们可以动态配置resourceUsageTransportPublishIntervalInSecs参数，所以，我们需要查看是否需要根据新值来处理数据
         // Check any re-scheduling requirements for next time.
         // Use the same period as getResourceUsagePublishIntervalInSecs;
         // cancel and re-schedule this task if the period of execution has changed.
         ServiceConfiguration config = pulsar.getConfiguration();
         long newPeriodInSeconds = config.getResourceUsageTransportPublishIntervalInSecs();
+        // TODO: 2/9/23 只要前后值不一样，就需要使用新值进行处理 
         if (newPeriodInSeconds != this.aggregateLocalUsagePeriodInSeconds) {
             if (this.aggreagteLocalUsagePeriodicTask == null) {
                 log.error("aggregateResourceGroupLocalUsages: Unable to find running task to cancel when "
                                 + "publish period changed from {} to {} {}",
                         this.aggregateLocalUsagePeriodInSeconds, newPeriodInSeconds, timeUnitScale);
             } else {
+                // TODO: 2/9/23 需要把之前的task cancel
                 boolean cancelStatus = this.aggreagteLocalUsagePeriodicTask.cancel(true);
                 log.info("aggregateResourceGroupLocalUsages: Got status={} in cancel of periodic "
                                 + "when publish period changed from {} to {} {}",
@@ -583,44 +624,61 @@ public class ResourceGroupService {
         }
     }
 
+
+    // todo 计算所有RG的 quota
+    //  calculateQuotaPeriodicTask: 负责定期计算所有ResourceGroup的更新的流量配额，周期性地执行calculateQuotaForAllResourceGroups方法。
+    //                              其内部的computeLocalQuota方法会根据配置值和实际值计算本地的流量配额。
+    //                              注意：这里没有对Dispatch进行流量更新
     // Periodically calculate the updated quota for all RGs in the background,
     // from the reports received from other brokers.
     // [Visibility for unit testing.]
     protected void calculateQuotaForAllResourceGroups() {
+        // todo 获取到起始时间
         // Calculate the quota for the next window for this RG, based on the observed usage.
         final Summary.Timer quotaCalcTimer = rgQuotaCalculationLatency.startTimer();
         BytesAndMessagesCount updatedQuota = new BytesAndMessagesCount();
+        // todo 遍历所有的RG
         this.resourceGroupsMap.forEach((rgName, resourceGroup) -> {
             BytesAndMessagesCount globalUsageStats;
             BytesAndMessagesCount localUsageStats;
             BytesAndMessagesCount confCounts;
+            // todo 目前只有生产和消费 publish， dispatch，需要注意的是，Dispatch是不进行更新操作的！
             for (ResourceGroupMonitoringClass monClass : ResourceGroupMonitoringClass.values()) {
                 try {
+                    // TODO: 2/10/23 获取所有broker的流量信息
                     globalUsageStats = resourceGroup.getGlobalUsageStats(monClass);
+                    // TODO: 2/10/23 获取该broker本身的流量信息
                     localUsageStats = resourceGroup.getLocalUsageStatsFromBrokerReports(monClass);
+                    // TODO: 2/10/23 配置的quota值
                     confCounts = resourceGroup.getConfLimits(monClass);
 
                     long[] globUsageBytesArray = new long[] { globalUsageStats.bytes };
+                    // TODO: 2/10/23 计算出调整后的broker的bytes值
                     updatedQuota.bytes = this.quotaCalculator.computeLocalQuota(
                             confCounts.bytes,
                             localUsageStats.bytes,
                             globUsageBytesArray);
 
                     long[] globUsageMessagesArray = new long[] {globalUsageStats.messages };
+                    // TODO: 2/10/23 计算出调整后的broker的messages值
                     updatedQuota.messages = this.quotaCalculator.computeLocalQuota(
                             confCounts.messages,
                             localUsageStats.messages,
                             globUsageMessagesArray);
 
+                    // todo 更新quota值，主要作用是为了和最新的quota值进行比较，查看增加的msg，bytes， updatedQuota=最新的quota值
+                    // TODO: 2/10/23 这里不会对Dispatch进行更新操作
                     BytesAndMessagesCount oldBMCount = resourceGroup.updateLocalQuota(monClass, updatedQuota);
                     // Guard against unconfigured quota settings, for which computeLocalQuota will return negative.
                     if (updatedQuota.messages >= 0) {
+                        // TODO: 2/14/23 当前RG调整的后Quota值
                         rgCalculatedQuotaMessages.labels(rgName, monClass.name()).inc(updatedQuota.messages);
                     }
                     if (updatedQuota.bytes >= 0) {
                         rgCalculatedQuotaBytes.labels(rgName, monClass.name()).inc(updatedQuota.bytes);
                     }
                     if (oldBMCount != null) {
+                        // todo 增加的msg，bytes
                         long messagesIncrement = updatedQuota.messages - oldBMCount.messages;
                         long bytesIncrement = updatedQuota.bytes - oldBMCount.bytes;
                         if (log.isDebugEnabled()) {
@@ -652,7 +710,9 @@ public class ResourceGroupService {
         // Use the same period as getResourceUsagePublishIntervalInSecs;
         // cancel and re-schedule this task if the period of execution has changed.
         ServiceConfiguration config = pulsar.getConfiguration();
+        // todo 默认为60s
         long newPeriodInSeconds = config.getResourceUsageTransportPublishIntervalInSecs();
+        // todo 初始化的时候， resourceUsagePublishPeriodInSeconds=60s
         if (newPeriodInSeconds != this.resourceUsagePublishPeriodInSeconds) {
             if (this.calculateQuotaPeriodicTask == null) {
                 log.error("calculateQuotaForAllResourceGroups: Unable to find running task to cancel when "
@@ -664,11 +724,14 @@ public class ResourceGroupService {
                         + " when publish period changed from {} to {} {}",
                         cancelStatus, this.resourceUsagePublishPeriodInSeconds, newPeriodInSeconds, timeUnitScale);
             }
+            // todo 如果刚开始时，都设置了newPeriodInSeconds=resourceUsagePublishPeriodInSeconds=60s，
+            //  现在通过动态配置重新设置了newPeriodInSeconds，那么此时，需要更新一下task的执行时间
             this.calculateQuotaPeriodicTask = pulsar.getExecutor().scheduleAtFixedRate(
                         catchingAndLoggingThrowables(this::calculateQuotaForAllResourceGroups),
                         newPeriodInSeconds,
                         newPeriodInSeconds,
                         timeUnitScale);
+            // todo 避免每次都更新，所以，更新完task执行时间后，需要更新resourceUsagePublishPeriodInSeconds，这样第二次就不会再更新了
             this.resourceUsagePublishPeriodInSeconds = newPeriodInSeconds;
             maxIntervalForSuppressingReportsMSecs =
                     this.resourceUsagePublishPeriodInSeconds * MaxUsageReportSuppressRounds;
@@ -677,18 +740,28 @@ public class ResourceGroupService {
 
     private void initialize() {
         ServiceConfiguration config = this.pulsar.getConfiguration();
+        // todo 默认为60s
         long periodInSecs = config.getResourceUsageTransportPublishIntervalInSecs();
+        // todo aggregateLocalUsagePeriodInSeconds = 60s, resourceUsagePublishPeriodInSeconds=60s
         this.aggregateLocalUsagePeriodInSeconds = this.resourceUsagePublishPeriodInSeconds = periodInSecs;
+        // todo 定时任务
+        //  aggregateLocalUsagePeriodicTask: 负责定期聚合所有已知BrokerService的流量使用情况，会周期性的执行aggregateResourceGroupLocalUsages方法，
+        //                                   针对生产消费两种行为。aggregateResourceGroupLocalUsages会调用updateStatsWithDiff方法，
+        //                                   找出最新更新的统计数据，若有差异则更新统计数据
         this.aggreagteLocalUsagePeriodicTask = this.pulsar.getExecutor().scheduleAtFixedRate(
                     catchingAndLoggingThrowables(this::aggregateResourceGroupLocalUsages),
                     periodInSecs,
                     periodInSecs,
                     this.timeUnitScale);
+        // todo 定时任务
+        //  calculateQuotaPeriodicTask: 负责定期计算所有ResourceGroup的更新的流量配额，周期性地执行calculateQuotaForAllResourceGroups方法。
+        //                              其内部的computeLocalQuota方法会根据配置值和实际值计算本地的流量配额。
         this.calculateQuotaPeriodicTask = this.pulsar.getExecutor().scheduleAtFixedRate(
                     catchingAndLoggingThrowables(this::calculateQuotaForAllResourceGroups),
                     periodInSecs,
                     periodInSecs,
                     this.timeUnitScale);
+        // todo 默认为300s
         maxIntervalForSuppressingReportsMSecs =
                 this.resourceUsagePublishPeriodInSeconds * MaxUsageReportSuppressRounds;
 
@@ -712,24 +785,29 @@ public class ResourceGroupService {
 
     private static final Logger log = LoggerFactory.getLogger(ResourceGroupService.class);
 
+    // todo pulsarService
     @Getter
     private final PulsarService pulsar;
 
+    // todo pulsar resource quota计算器
     protected final ResourceQuotaCalculator quotaCalculator;
     private ResourceUsageTransportManager resourceUsageTransportManagerMgr;
 
     // rgConfigListener is used only through its side effects in the ctors, to set up RG/NS loading in config-listeners.
     private final ResourceGroupConfigListener rgConfigListener;
 
+    // TODO: 2/9/23 缓存中的resourcegroup map <RG-name, ResourceGroup>
     // Given a RG-name, get the resource-group
     private ConcurrentHashMap<String, ResourceGroup> resourceGroupsMap = new ConcurrentHashMap<>();
 
     // Given a tenant-name, record its associated resource-group
     private ConcurrentHashMap<String, ResourceGroup> tenantToRGsMap = new ConcurrentHashMap<>();
 
+    // todo 这个是 namespace和resourcegroup 的map，因为一个namespace只对应一个rc
     // Given a qualified NS-name (i.e., in "tenant/namespace" format), record its associated resource-group
     private ConcurrentHashMap<NamespaceName, ResourceGroup> namespaceToRGsMap = new ConcurrentHashMap<>();
 
+    // TODO: 2/9/23 在缓存中保留一份所有topic的流量数据
     // Maps to maintain the usage per topic, in produce/consume directions.
     private ConcurrentHashMap<String, BytesAndMessagesCount> topicProduceStats = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, BytesAndMessagesCount> topicConsumeStats = new ConcurrentHashMap<>();

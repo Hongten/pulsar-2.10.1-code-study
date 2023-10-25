@@ -43,6 +43,7 @@ import org.apache.pulsar.common.util.FutureUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// TODO: 2/22/23 使用正则表达式消费topic时，会有MultiTopicConsumerImpl的所有能力，并且会定时更新所有topic的变化
 public class PatternMultiTopicsConsumerImpl<T> extends MultiTopicsConsumerImpl<T> implements TimerTask {
     private final Pattern topicsPattern;
     private final TopicsChangedListener topicsChangeListener;

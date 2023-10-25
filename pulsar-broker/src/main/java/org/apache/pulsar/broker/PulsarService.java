@@ -194,9 +194,14 @@ public class PulsarService implements AutoCloseable, ShutdownService {
     private TopicPoliciesService topicPoliciesService = TopicPoliciesService.DISABLED;
     private BookKeeperClientFactory bkClientFactory;
     private Compactor compactor;
+    // TODO: 2/9/23 如果我们需要开启resourcegroup功能进行限流，那么我们需要实例化一个可用的transport manager，默认情况下系统会使用 DISABLE_RESOURCE_USAGE_TRANSPORT_MANAGER，即关闭的transport manager
     private ResourceUsageTransportManager resourceUsageTransportManager;
+    // TODO: 2/9/23 pulsar里面使用resourceGroup做quota限制服务，
+    //  1. 先要创建一个resourcegroup，创建的同时，会设置resourcegroup对应的quota值。
+    //  2. 然后把该resourcegroup绑定到namespace上面，那么这个时候namespace下面所有的topic都会收到给quota的限制
     private ResourceGroupService resourceGroupServiceManager;
 
+    // TODO: 2/10/23 pulsar的线程池
     private final ScheduledExecutorService executor;
     private final ScheduledExecutorService cacheExecutor;
 
@@ -263,6 +268,7 @@ public class PulsarService implements AutoCloseable, ShutdownService {
     private final ExecutorProvider transactionExecutorProvider;
 
     public enum State {
+        // TODO: 12/30/22 pulsar service的各种状态
         Init, Started, Closing, Closed
     }
 
@@ -294,9 +300,11 @@ public class PulsarService implements AutoCloseable, ShutdownService {
                          Consumer<Integer> processTerminator) {
         state = State.Init;
 
+        // TODO: 12/30/22 对参数进行校验
         // Validate correctness of configuration
         PulsarConfigurationLoader.isComplete(config);
 
+        // TODO: 12/30/22 各种listener
         // validate `advertisedAddress`, `advertisedListeners`, `internalListenerName`
         this.advertisedListeners = MultipleListenerValidator.validateAndAnalysisAdvertisedListener(config);
 
@@ -308,15 +316,19 @@ public class PulsarService implements AutoCloseable, ShutdownService {
         this.brokerVersion = PulsarVersion.getVersion();
         this.config = config;
         this.processTerminator = processTerminator;
+        // TODO: 12/30/22 pulsar-load-manager，单线程
         this.loadManagerExecutor = Executors
                 .newSingleThreadScheduledExecutor(new DefaultThreadFactory("pulsar-load-manager"));
         this.workerConfig = workerConfig;
         this.functionWorkerService = functionWorkerService;
+        // TODO: 12/30/22 默认线程池大小为20
         this.executor = Executors.newScheduledThreadPool(config.getNumExecutorThreadPoolSize(),
                 new DefaultThreadFactory("pulsar"));
+        // TODO: 12/30/22  zk cache callback线程池，默认大小为10
         this.cacheExecutor = Executors.newScheduledThreadPool(config.getNumCacheExecutorThreadPoolSize(),
                 new DefaultThreadFactory("zk-cache-callback"));
 
+        // TODO: 12/30/22 事务，默认是关闭的，线程池大小默认为5
         if (config.isTransactionCoordinatorEnabled()) {
             this.transactionExecutorProvider = new ExecutorProvider(this.getConfiguration()
                     .getNumTransactionReplayThreadPoolSize(), "pulsar-transaction-executor");
@@ -324,6 +336,7 @@ public class PulsarService implements AutoCloseable, ShutdownService {
             this.transactionExecutorProvider = null;
         }
 
+        // TODO: 12/30/22 IO 线程池，配置为32
         this.ioEventLoopGroup = EventLoopUtil.newEventLoopGroup(config.getNumIOThreads(), config.isEnableBusyWait(),
                 new DefaultThreadFactory("pulsar-io"));
         // the internal executor is not used in the broker client or replication clients since this executor is
@@ -621,6 +634,7 @@ public class PulsarService implements AutoCloseable, ShutdownService {
      * Start the pulsar service instance.
      */
     public void start() throws PulsarServerException {
+        // TODO: 12/30/22 打印pulsar启动信息
         LOG.info("Starting Pulsar Broker service; version: '{}'",
                 (brokerVersion != null ? brokerVersion : "unknown"));
         LOG.info("Git Revision {}", PulsarVersion.getGitSha());
@@ -632,8 +646,10 @@ public class PulsarService implements AutoCloseable, ShutdownService {
 
         long startTimestamp = System.currentTimeMillis();  // start time mills
 
+        // TODO: 12/30/22 加锁处理后面finally里面释放锁
         mutex.lock();
         try {
+            // TODO: 12/30/22 在构建PulsarService的时候，设置了状态为Init
             if (state != State.Init) {
                 throw new PulsarServerException("Cannot start the service once it was stopped");
             }
@@ -647,9 +663,11 @@ public class PulsarService implements AutoCloseable, ShutdownService {
                         + "authenticationEnabled=true when authorization is enabled with authorizationEnabled=true.");
             }
 
+            // TODO: 12/30/22 metadata存储
             localMetadataStore = createLocalMetadataStore();
             localMetadataStore.registerSessionListener(this::handleMetadataSessionEvent);
 
+            // TODO: 12/30/22 metadata 存储协调器服务，单线程
             coordinationService = new CoordinationServiceImpl(localMetadataStore);
 
             if (config.isConfigurationStoreSeparated()) {
@@ -659,28 +677,35 @@ public class PulsarService implements AutoCloseable, ShutdownService {
                 configurationMetadataStore = localMetadataStore;
                 shouldShutdownConfigurationMetadataStore = false;
             }
+            // TODO: 12/30/22 timeout默认为30s
             pulsarResources = new PulsarResources(localMetadataStore, configurationMetadataStore,
                     config.getMetadataStoreOperationTimeoutSeconds());
 
             pulsarResources.getClusterResources().getStore().registerListener(this::handleDeleteCluster);
 
+            // TODO: 12/30/22 默认为8个线程 主要和zk交互
             orderedExecutor = OrderedExecutor.newBuilder()
                     .numThreads(config.getNumOrderedExecutorThreads())
                     .name("pulsar-ordered")
                     .build();
 
+            // TODO: 2/15/23 ============================================= KOP协议加载
+            // TODO: 12/30/22 KOP以及其他协议在这里被加载
             // Initialize the message protocol handlers
             protocolHandlers = ProtocolHandlers.load(config);
             protocolHandlers.initialize(config);
 
+            // TODO: 12/30/22 bookie客户端初始化
             // Now we are ready to start services
             this.bkClientFactory = newBookKeeperClientFactory();
 
+            // TODO: 12/30/22 实例化managed Ledger client
             managedLedgerClientFactory = ManagedLedgerStorage.create(
                 config, localMetadataStore,
                     bkClientFactory, ioEventLoopGroup
             );
 
+            // TODO: 12/30/22 初始化broker服务
             this.brokerService = newBrokerService(this);
 
             // Start load management service (even if load balancing is disabled)
@@ -689,23 +714,30 @@ public class PulsarService implements AutoCloseable, ShutdownService {
             // needs load management service and before start broker service,
             this.startNamespaceService();
 
+            // TODO: 1/4/23 topicSchema storage
             schemaStorage = createAndStartSchemaStorage();
             schemaRegistryService = SchemaRegistryService.create(
                     schemaStorage, config.getSchemaRegistryCompatibilityCheckers());
 
             this.defaultOffloader = createManagedLedgerOffloader(
                     OffloadPoliciesImpl.create(this.getConfiguration().getProperties()));
+            // TODO: 1/4/23 broker端配置的拦截器 
             this.brokerInterceptor = BrokerInterceptors.load(config);
+            // TODO: 1/4/23 broker加载拦截器 
             brokerService.setInterceptor(getBrokerInterceptor());
             this.brokerInterceptor.initialize(this);
+            // TODO: 1/4/23 broker服务开启，拉起很多之前初始化好的线程
             brokerService.start();
 
             // Load additional servlets
             this.brokerAdditionalServlets = AdditionalServlets.load(config);
 
+            // TODO: 1/4/23 创建web service
             this.webService = new WebService(this);
             createMetricsServlet();
+            // TODO: 1/4/23 web service handler
             this.addWebServerHandlers(webService, metricsServlet, this.config);
+            // TODO: 1/4/23 webservice 开启
             this.webService.start();
             heartbeatNamespaceV1 = NamespaceService.getHeartbeatNamespace(this.advertisedAddress, this.config);
             heartbeatNamespaceV2 = NamespaceService.getHeartbeatNamespaceV2(this.advertisedAddress, this.config);
@@ -733,9 +765,11 @@ public class PulsarService implements AutoCloseable, ShutdownService {
                 this.webSocketService.setLocalCluster(clusterData);
             }
 
+            // TODO: 1/4/23 namespace service 初始化
             // Initialize namespace service, after service url assigned. Should init zk and refresh self owner info.
             this.nsService.initialize();
 
+            // TODO: 1/4/23 topicLevelPoliciesEnabled 默认为false。 在开启了topic级别的策略设置后，需要借助系统topic来存储信息
             // Start topic level policies service
             if (config.isTopicLevelPoliciesEnabled() && config.isSystemTopicEnabled()) {
                 this.topicPoliciesService = new SystemTopicBasedTopicPoliciesService(this);
@@ -743,14 +777,17 @@ public class PulsarService implements AutoCloseable, ShutdownService {
 
             this.topicPoliciesService.start();
 
+            // TODO: 1/4/23 负载均衡
             // Start the leader election service
             startLeaderElectionService();
 
             // Register heartbeat and bootstrap namespaces.
             this.nsService.registerBootstrapNamespaces();
 
+            // TODO: 1/4/23 如果开启了事务
             // Register pulsar system namespaces and start transaction meta store service
             if (config.isTransactionCoordinatorEnabled()) {
+                // TODO: 1/4/23 初始化事务的各个组件和服务
                 this.transactionBufferSnapshotService = new SystemTopicBaseTxnBufferSnapshotService(getClient());
                 this.transactionTimer =
                         new HashedWheelTimer(new DefaultThreadFactory("pulsar-transaction-timer"));
@@ -768,7 +805,10 @@ public class PulsarService implements AutoCloseable, ShutdownService {
                         .newProvider(config.getTransactionPendingAckStoreProviderClassName());
             }
 
+            // TODO: 1/4/23 主要是JVM的 metrics
             this.metricsGenerator = new MetricsGenerator(this);
+
+            // TODO: 1/4/23 ======== 从这里开始，broker service已经完全已经运行起来了。接下来的操作是针对broker service起来后的操作
 
             // By starting the Load manager service, the broker will also become visible
             // to the rest of the broker by creating the registration z-node. This needs
@@ -778,13 +818,16 @@ public class PulsarService implements AutoCloseable, ShutdownService {
             // Initialize the message protocol handlers.
             // start the protocol handlers only after the broker is ready,
             // so that the protocol handlers can access broker service properly.
+            // TODO: 1/4/23 各种协议的处理 ，在这之前，已经加载了各种协议，e.g KoP
             this.protocolHandlers.start(brokerService);
             Map<String, Map<InetSocketAddress, ChannelInitializer<SocketChannel>>> protocolHandlerChannelInitializers =
                 this.protocolHandlers.newChannelInitializers();
+            // TODO: 1/4/23 默认情况下，额外的协议都会使用不同的线程池进行处理
             this.brokerService.startProtocolHandlers(protocolHandlerChannelInitializers);
 
             acquireSLANamespace();
 
+            // TODO: 1/4/23 pulsar function相关
             // start function worker service if necessary
             this.startWorkerService(brokerService.getAuthenticationService(), brokerService.getAuthorizationService());
 
@@ -793,19 +836,32 @@ public class PulsarService implements AutoCloseable, ShutdownService {
                 this.startPackagesManagementService();
             }
 
+            // TODO: 2/9/23 在使用到resourcegroup做quota限流中，使用到了两个组件：
+            //  1. resourceUsageTransportManager，系统默认是关闭的状态，我们需要在配置文件中配置进行开启。
+            //  2. resourceGroupServiceManager -> ResourceGroupService
+
+            // TODO: 1/4/23 resource group相关，和producer quota相关，默认情况下，transport manager是关闭状态（disable）
             // Start the task to publish resource usage, if necessary
             this.resourceUsageTransportManager = DISABLE_RESOURCE_USAGE_TRANSPORT_MANAGER;
+            // todo 检查 'resourceUsageTransportClassName' 是否配置，如果有，则进行加载。系统默认为''
+            // TODO: 2/9/23 在测试用例中，找到了resourceUsageTransportClassName="org.apache.pulsar.broker.resourcegroup.ResourceUsageTopicTransportManager" 
+            // TODO: 2/9/23 说明，如果我们需要使用resourcegroup，需要提供这个 className
             if (isNotBlank(config.getResourceUsageTransportClassName())) {
                 Class<?> clazz = Class.forName(config.getResourceUsageTransportClassName());
                 Constructor<?> ctor = clazz.getConstructor(PulsarService.class);
+                // TODO: 2/9/23 调用的是 ResourceUsageTopicTransportManager(PulsarService pulsarService) 构造方法
+                // TODO: 2/21/23 这里还需要加入try catch, else - java.lang.reflect.InvocationTargetException: null 
                 Object object = ctor.newInstance(new Object[]{this});
+                // TODO: 2/9/23 如果我们有配置，则 resourceUsageTransportManager=org.apache.pulsar.broker.resourcegroup.ResourceUsageTopicTransportManager
                 this.resourceUsageTransportManager = (ResourceUsageTopicTransportManager) object;
             }
+            // todo 加载ResourceGroupService
             this.resourceGroupServiceManager = new ResourceGroupService(this);
 
             long currentTimestamp = System.currentTimeMillis();
             final long bootstrapTimeSeconds = TimeUnit.MILLISECONDS.toSeconds(currentTimestamp - startTimestamp);
 
+            // TODO: 1/4/23 pulsar service完全启动成功，信息打印
             final String bootstrapMessage = "bootstrap service "
                     + (config.getWebServicePort().isPresent() ? "port = " + config.getWebServicePort().get() : "")
                     + (config.getWebServicePortTls().isPresent() ? ", tls-port = " + config.getWebServicePortTls() : "")
@@ -815,6 +871,7 @@ public class PulsarService implements AutoCloseable, ShutdownService {
             LOG.info("messaging service is ready, {}, cluster={}, configs={}", bootstrapMessage,
                     config.getClusterName(), ReflectionToStringBuilder.toString(config));
 
+            // TODO: 1/4/23 标记为Started
             state = State.Started;
         } catch (Exception e) {
             LOG.error("Failed to start Pulsar service: {}", e.getMessage(), e);
@@ -850,6 +907,7 @@ public class PulsarService implements AutoCloseable, ShutdownService {
             // Ensure the VIP status is only visible when the broker is fully initialized
             return state == State.Started;
         });
+        // TODO: 1/4/23 添加rest 资源 
         // Add admin rest resources
         webService.addRestResources("/",
                 VipStatus.class.getPackage().getName(), false, vipAttributeMap);
@@ -982,8 +1040,10 @@ public class PulsarService implements AutoCloseable, ShutdownService {
                     if (state == LeaderElectionState.Leading) {
                         LOG.info("This broker was elected leader");
                         if (getConfiguration().isLoadBalancerEnabled()) {
+                            // TODO: 1/4/23 默认为1min
                             long loadSheddingInterval = TimeUnit.MINUTES
                                     .toMillis(getConfiguration().getLoadBalancerSheddingIntervalMinutes());
+                            // TODO: 1/4/23 默认为15mins
                             long resourceQuotaUpdateInterval = TimeUnit.MINUTES
                                     .toMillis(getConfiguration().getLoadBalancerResourceQuotaUpdateIntervalMinutes());
 
@@ -993,6 +1053,7 @@ public class PulsarService implements AutoCloseable, ShutdownService {
                             if (loadResourceQuotaTask != null) {
                                 loadResourceQuotaTask.cancel(false);
                             }
+                            // TODO: 1/4/23  负载均衡tasks
                             loadSheddingTask = loadManagerExecutor.scheduleAtFixedRate(
                                     new LoadSheddingTask(loadManager),
                                     loadSheddingInterval, loadSheddingInterval, TimeUnit.MILLISECONDS);
@@ -1283,6 +1344,7 @@ public class PulsarService implements AutoCloseable, ShutdownService {
     }
 
     private SchemaStorage createAndStartSchemaStorage() throws Exception {
+        // TODO: 1/4/23 默认 org.apache.pulsar.broker.service.schema.BookkeeperSchemaStorageFactory
         final Class<?> storageClass = Class.forName(config.getSchemaRegistryStorageClassName());
         Object factoryInstance = storageClass.getDeclaredConstructor().newInstance();
         Method createMethod = storageClass.getMethod("create", PulsarService.class);

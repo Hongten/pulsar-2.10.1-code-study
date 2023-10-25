@@ -110,6 +110,7 @@ public interface ResourceGroups {
         CompletableFuture<ResourceGroup> getResourceGroupAsync(String resourcegroup);
 
         /**
+         * todo 创建一个resourcegroup
          * Create a new resourcegroup.
          * <p/>
          * Creates a new reourcegroup with the configuration specified.

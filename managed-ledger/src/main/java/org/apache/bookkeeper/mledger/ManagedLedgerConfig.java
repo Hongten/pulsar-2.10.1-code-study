@@ -71,6 +71,7 @@ public class ManagedLedgerConfig {
     private Map<String, Object> bookKeeperEnsemblePlacementPolicyProperties;
     private LedgerOffloader ledgerOffloader = NullLedgerOffloader.INSTANCE;
     private int newEntriesCheckDelayInMillis = 10;
+    // todo 初始化UTC时间
     private Clock clock = Clock.systemUTC();
     private ManagedLedgerInterceptor managedLedgerInterceptor;
     private Map<String, String> properties;
@@ -104,6 +105,7 @@ public class ManagedLedgerConfig {
         return this;
     }
 
+    // TODO: 2/1/23 获取 maxEntriesPerLedger
     /**
      * @return the maxEntriesPerLedger
      */

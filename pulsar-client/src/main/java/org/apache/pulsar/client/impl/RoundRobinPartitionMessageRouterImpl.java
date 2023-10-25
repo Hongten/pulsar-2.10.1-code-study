@@ -74,13 +74,17 @@ public class RoundRobinPartitionMessageRouterImpl extends MessageRouterBase {
     public int choosePartition(Message<?> msg, TopicMetadata topicMetadata) {
         // If the message has a key, it supersedes the round robin routing policy
         if (msg.hasKey()) {
+            // TODO: 10/23/23 如果提供了key，则使用key的哈希值和partitionNum取余
             return signSafeMod(hash.makeHash(msg.getKey()), topicMetadata.numPartitions());
         }
 
         if (isBatchingEnabled) { // if batching is enabled, choose partition on `partitionSwitchMs` boundary.
             long currentMs = clock.millis();
+            // TODO: 10/23/23 如果批量消息发送启用，则基于maxBatchingDelayMs边界计算
+            //  （假定其为1ms，当前时间为Nms，那么N到N+1ms产生的消息都将会放入一个分区）
             return signSafeMod(currentMs / partitionSwitchMs + startPtnIdx, topicMetadata.numPartitions());
         } else {
+            // TODO: 10/23/23 如果没有提供key，并且也没有开启批发送，则 PARTITION_INDEX_UPDATER会提供一个自增的数和partition进行取余
             return signSafeMod(PARTITION_INDEX_UPDATER.getAndIncrement(this), topicMetadata.numPartitions());
         }
     }

@@ -63,6 +63,7 @@ public class RateLimiter implements AutoCloseable{
     private RateLimitFunction rateLimitFunction;
     private boolean isDispatchOrPrecisePublishRateLimiter;
 
+    // TODO: 2/10/23 创建一个RateLimiter
     @Builder
     RateLimiter(final ScheduledExecutorService scheduledExecutorService, final long permits, final long rateTime,
             final TimeUnit timeUnit, Supplier<Long> permitUpdater, boolean isDispatchOrPrecisePublishRateLimiter,
@@ -70,8 +71,10 @@ public class RateLimiter implements AutoCloseable{
         checkArgument(permits > 0, "rate must be > 0");
         checkArgument(rateTime > 0, "Renew permit time must be > 0");
 
+        // TODO: 2/13/23 task的调度时间1s
         this.rateTime = rateTime;
         this.timeUnit = timeUnit;
+        // TODO: 2/13/23 我们设置的quota值 
         this.permits = permits;
         this.permitUpdater = permitUpdater;
         this.isDispatchOrPrecisePublishRateLimiter = isDispatchOrPrecisePublishRateLimiter;
@@ -165,6 +168,7 @@ public class RateLimiter implements AutoCloseable{
         return tryAcquire(1);
     }
 
+    // TODO: 2/13/23 同步方法，true-没有超quota
     /**
      * Acquires permits from this {@link RateLimiter} if it can be acquired immediately without delay.
      *
@@ -174,13 +178,18 @@ public class RateLimiter implements AutoCloseable{
      */
     public synchronized boolean tryAcquire(long acquirePermit) {
         checkArgument(!isClosed(), "Rate limiter is already shutdown");
+        // TODO: 2/13/23 如果周期性任务为空，则创建一个。
+        //  主要功能定时更新 acquiredPermits，因为这个acquiredPermits值会一直累加起来的，所以，需要定期刷新一下
         // lazy init and start task only once application start using it
         if (renewTask == null) {
             renewTask = createTask();
         }
 
+        // TODO: 2/13/23 acquirePermit为当前值。 acquiredPermits为累积值。permits为我们设置的quota值
         boolean canAcquire = acquirePermit < 0 || acquiredPermits < this.permits;
+        // TODO: 2/13/23 publish过来的没有这个参数，即为false
         if (isDispatchOrPrecisePublishRateLimiter) {
+            // TODO: 2/22/23 如果是消费类型的，就把需要申请的permit累加到累积值 acquiredPermits上面
             // for dispatch rate limiter just add acquirePermit
             acquiredPermits += acquirePermit;
 
@@ -188,16 +197,18 @@ public class RateLimiter implements AutoCloseable{
             // are any available premits again
             canAcquire = acquirePermit < 0 || acquiredPermits < this.permits;
         } else {
+            // TODO: 2/13/23 如果当前的值 + 累积值高于了quota，说明超quota了，则返回false
             // acquired-permits can't be larger than the rate
             if (acquirePermit + acquiredPermits > this.permits) {
                 return false;
             }
 
+            // TODO: 2/13/23 如果还没有超，则把当前值累计到累积值上面，作为下次计算的累积值
             if (canAcquire) {
                 acquiredPermits += acquirePermit;
             }
         }
-
+        // TODO: 2/13/23 返回是否可以放行
         return canAcquire;
     }
 
@@ -256,11 +267,20 @@ public class RateLimiter implements AutoCloseable{
     }
 
     protected ScheduledFuture<?> createTask() {
+        // todo 定时更新 acquiredPermits，因为这个acquiredPermits值会一直累加起来的，所以，需要定期刷新一下
         return executorService.scheduleAtFixedRate(catchingAndLoggingThrowables(this::renew), this.rateTime,
                 this.rateTime, this.timeUnit);
     }
 
+    // 1. acquiredPermits =0, 5mb, acquiredPermits= 5, permits=10mb
+    // 2. acquiredPermits= 5 permits=10mb, input=15
+    // acquiredPermits = 20,
+    // 3. input 15 acquiredPermits = 35
+    // 5s, renew -> acquiredPermits=0
+    // 4, input 5 , acquiredPermits= 5 ,permits=10mb
     synchronized void renew() {
+        // todo 刷新acquiredPermits的值
+        // TODO: 2/13/23 acquiredPermits为累积值，isDispatchOrPrecisePublishRateLimiter=false，即acquiredPermits=0，重置acquiredPermits
         acquiredPermits = isDispatchOrPrecisePublishRateLimiter ? Math.max(0, acquiredPermits - permits) : 0;
         if (permitUpdater != null) {
             long newPermitRate = permitUpdater.get();

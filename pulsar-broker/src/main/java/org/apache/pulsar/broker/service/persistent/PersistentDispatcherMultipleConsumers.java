@@ -63,6 +63,7 @@ import org.apache.pulsar.common.util.Codec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// TODO: 2/22/23 订阅可以被多个消费者消费，如Shared
 /**
  *
  */
@@ -285,12 +286,15 @@ public class PersistentDispatcherMultipleConsumers extends AbstractDispatcherMul
         }
     }
 
+    // TODO: 2/22/23 如果超过quota，都会调用这个方法
     @Override
     protected void reScheduleRead() {
         topic.getBrokerService().executor().schedule(() -> readMoreEntries(), MESSAGE_RATE_BACKOFF_MS,
                 TimeUnit.MILLISECONDS);
     }
 
+    // TODO: 2/22/23 计算出consumer需要读取的消息量，Ledger多少,
+    //  参考PersistentDispatcherSingleActiveConsumer#calculateToRead() 逻辑一样的
     // left pair is messagesToRead, right pair is bytesToRead
     protected Pair<Integer, Long> calculateToRead(int currentTotalAvailablePermits) {
         int messagesToRead = Math.min(currentTotalAvailablePermits, readBatchSize);
@@ -317,6 +321,7 @@ public class PersistentDispatcherMultipleConsumers extends AbstractDispatcherMul
         // active-cursor reads message from cache rather from bookkeeper (2) if topic has reached message-rate
         // threshold: then schedule the read after MESSAGE_RATE_BACKOFF_MS
         if (serviceConfig.isDispatchThrottlingOnNonBacklogConsumerEnabled() || !cursor.isActive()) {
+            // TODO: 2/22/23 broker限流检查
             if (topic.getBrokerDispatchRateLimiter().isPresent()) {
                 DispatchRateLimiter brokerRateLimiter = topic.getBrokerDispatchRateLimiter().get();
                 if (reachDispatchRateLimit(brokerRateLimiter)) {
@@ -367,6 +372,8 @@ public class PersistentDispatcherMultipleConsumers extends AbstractDispatcherMul
                     bytesToRead = calculateToRead.getRight();
                 }
             }
+
+            // TODO: 2/22/23 resourceGroup 的消费限流检查可以加入到这里
         }
 
         if (havePendingReplayRead) {

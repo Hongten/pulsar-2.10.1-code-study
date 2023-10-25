@@ -1241,7 +1241,9 @@ public abstract class NamespacesBase extends AdminResource {
 
         try {
             updatePolicies(namespaceName, policies -> {
+                // todo "topicDispatchRate":{"uat-di-kfk-pulsar-cluster":{"dispatchThrottlingRateInMsg":-1,"dispatchThrottlingRateInByte":20971520,"relativeToPublishRate":false,"ratePeriodInSecond":1}}
                 policies.topicDispatchRate.put(pulsar().getConfiguration().getClusterName(), dispatchRate);
+                // todo "clusterDispatchRate":{"uat-di-kfk-pulsar-cluster":{"dispatchThrottlingRateInMsg":-1,"dispatchThrottlingRateInByte":20971520,"relativeToPublishRate":false,"ratePeriodInSecond":1}}
                 policies.clusterDispatchRate.put(pulsar().getConfiguration().getClusterName(), dispatchRate);
                 return policies;
             });
@@ -2726,6 +2728,7 @@ public abstract class NamespacesBase extends AdminResource {
         validatePoliciesReadOnlyAccess();
 
         if (rgName != null) {
+            // todo 在给一个namespace设置resourcegroup的时候，这个resourcegroup一定是先创建的
             // check resourcegroup exists.
             try {
                 if (!resourceGroupResources().resourceGroupExists(rgName)) {
@@ -2736,7 +2739,7 @@ public abstract class NamespacesBase extends AdminResource {
                 throw new RestException(e);
             }
         }
-
+        // todo "resource_group_name":"pulsar_default_publish_byte_rate"
         internalSetPolicies("resource_group_name", rgName);
     }
 

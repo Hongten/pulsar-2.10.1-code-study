@@ -108,6 +108,7 @@ public class PulsarAdminTool {
         this.tlsTrustStorePath = properties.getProperty("tlsTrustStorePath");
         this.tlsTrustStorePassword = properties.getProperty("tlsTrustStorePassword");
 
+        // todo 初始化pulsarAdmin
         adminBuilder = PulsarAdmin.builder().allowTlsInsecureConnection(tlsAllowInsecureConnection)
                 .enableTlsHostnameVerification(tlsEnableHostnameVerification)
                 .tlsTrustCertsFilePath(tlsTrustCertsFilePath)
@@ -128,7 +129,7 @@ public class PulsarAdminTool {
         commandMap.put("tenants", CmdTenants.class);
         commandMap.put("resourcegroups", CmdResourceGroups.class);
         commandMap.put("properties", CmdTenants.CmdProperties.class); // deprecated, doesn't show in usage()
-        commandMap.put("namespaces", CmdNamespaces.class);
+        commandMap.put("namespaces", CmdNamespaces.class); // todo 所有namespace相关设置
         commandMap.put("topics", CmdTopics.class);
         commandMap.put("topicPolicies", CmdTopicPolicies.class);
         commandMap.put("schemas", CmdSchemas.class);
@@ -307,6 +308,7 @@ public class PulsarAdminTool {
             }
         }
 
+        // todo 默认情况下，会使用$PULSAR_HOME/conf/client.conf 配置文件
         PulsarAdminTool tool = new PulsarAdminTool(properties);
 
         int cmdPos;

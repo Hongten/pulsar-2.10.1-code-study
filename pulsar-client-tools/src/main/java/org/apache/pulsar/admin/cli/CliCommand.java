@@ -42,8 +42,11 @@ abstract class CliCommand {
         return splitParameter(params, 2);
     }
 
+    // todo 检查namespace是否合法
     static String validateNamespace(List<String> params) {
+        // todo 从参数列表里面获取到namespace
         String namespace = checkArgument(params);
+        // todo 如果namespace合法并且在cache中，则返回
         return NamespaceName.get(namespace).toString();
     }
 
@@ -55,6 +58,7 @@ abstract class CliCommand {
     static String validatePersistentTopic(List<String> params) {
         String topic = checkArgument(params);
         TopicName topicName = TopicName.get(topic);
+        // TODO: 1/18/23 topic名称需要全称
         if (topicName.getDomain() != TopicDomain.persistent) {
             throw new ParameterException("Need to provide a persistent topic name");
         }
@@ -127,6 +131,9 @@ abstract class CliCommand {
     }
 
     static String checkArgument(List<String> arguments) {
+        // todo 获取到第一个参数就是namespace='antifraud_ods/anti_fraud.data_collector.tss_sync'
+        //  bin/pulsar-admin namespaces set-dispatch-rate
+        //  antifraud_ods/anti_fraud.data_collector.tss_sync --byte-dispatch-rate 20971520 --dispatch-rate-period 1
         if (arguments.size() != 1) {
             throw new ParameterException("Need to provide just 1 parameter");
         }

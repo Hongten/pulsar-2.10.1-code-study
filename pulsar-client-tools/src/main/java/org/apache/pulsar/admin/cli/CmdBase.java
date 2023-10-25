@@ -109,6 +109,7 @@ public abstract class CmdBase {
 
     protected PulsarAdmin getAdmin() {
         if (admin == null) {
+            // todo 获取到admin客户端
             admin = adminSupplier.get();
         }
         return admin;

@@ -65,6 +65,7 @@ public class NamespaceBundleFactory {
 
     private final HashFunction hashFunc;
 
+    // TODO: 2/23/23 在broker内存中维护这个bundlesCache
     private final AsyncLoadingCache<NamespaceName, NamespaceBundles> bundlesCache;
 
     private final PulsarService pulsar;
@@ -197,6 +198,7 @@ public class NamespaceBundleFactory {
     }
 
     public CompletableFuture<NamespaceBundles> getBundlesAsync(NamespaceName nsname) {
+        // TODO: 2/23/23 更加namespace获取到对应的bundles
         return bundlesCache.get(nsname);
     }
 
@@ -287,6 +289,7 @@ public class NamespaceBundleFactory {
     }
 
     public long getLongHashCode(String name) {
+        // TODO: 2/23/23 获取topic的hashcode
         return this.hashFunc.hashString(name, Charsets.UTF_8).padToLong();
     }
 

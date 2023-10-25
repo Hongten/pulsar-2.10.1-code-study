@@ -403,6 +403,7 @@ public class ServiceConfiguration implements PulsarConfiguration {
     )
     private long brokerShutdownTimeoutMs = 60000;
 
+    // todo 当brokerOOM的时候是否需要关闭broker，默认会关闭
     @FieldContext(
         category = CATEGORY_SERVER,
         dynamic = true,
@@ -665,6 +666,7 @@ public class ServiceConfiguration implements PulsarConfiguration {
             + " relative to a disconnected producer. Default is 6 hours.")
     private int brokerDeduplicationProducerInactivityTimeoutMinutes = 360;
 
+    // todo 默认的bundle为4个
     @FieldContext(
         category = CATEGORY_POLICIES,
         doc = "When a namespace is created without specifying the number of bundle, this"
@@ -778,6 +780,7 @@ public class ServiceConfiguration implements PulsarConfiguration {
                     + "it uses more CPU to perform frequent check. (Disable publish throttling with value 0)"
         )
     private int topicPublisherThrottlingTickTimeMillis = 10;
+    // TODO 是否开启topic发送消息的精确速率限制
     @FieldContext(
             category = CATEGORY_SERVER,
             doc = "Enable precise rate limit for topic publish"
@@ -805,6 +808,7 @@ public class ServiceConfiguration implements PulsarConfiguration {
             + "when broker publish rate limiting enabled. (Disable byte rate limit with value 0)"
     )
     private long brokerPublisherThrottlingMaxByteRate = 0;
+    // todo broker级别的消费限流 msg
     @FieldContext(
             category = CATEGORY_SERVER,
             dynamic = true,
@@ -812,6 +816,7 @@ public class ServiceConfiguration implements PulsarConfiguration {
                     + "Using a value of 0, is disabling default message-byte dispatch-throttling"
     )
     private int dispatchThrottlingRateInMsg = 0;
+    // todo broker级别的消费限流 byte
     @FieldContext(
             category = CATEGORY_SERVER,
             dynamic = true,
@@ -834,6 +839,7 @@ public class ServiceConfiguration implements PulsarConfiguration {
     )
     private long maxPublishRatePerTopicInBytes = 0;
 
+    // todo 每个消费者订阅请求数限制
     @FieldContext(
         category = CATEGORY_POLICIES,
         dynamic = true,
@@ -842,6 +848,7 @@ public class ServiceConfiguration implements PulsarConfiguration {
             + " value is set, broker will throttle the subscribe requests for one consumer. Otherwise, the"
             + " throttling will be disabled. The default value of this setting is 0 - throttling is disabled.")
     private int subscribeThrottlingRatePerConsumer = 0;
+    // todo 检查时间
     @FieldContext(
         minValue = 1,
         dynamic = true,
@@ -850,12 +857,14 @@ public class ServiceConfiguration implements PulsarConfiguration {
     )
     private int subscribeRatePeriodPerConsumerInSecond = 30;
 
+    // todo 消费速率， 在一段时间内可以允许多少条消息
     @FieldContext(
         dynamic = true,
         category = CATEGORY_POLICIES,
         doc = "Default number of message dispatching throttling-limit for every topic. \n\n"
             + "Using a value of 0, is disabling default message dispatch-throttling")
     private int dispatchThrottlingRatePerTopicInMsg = 0;
+    // todo 消费速率， 在一段时间内可以允许的字节大小
     @FieldContext(
         dynamic = true,
         category = CATEGORY_POLICIES,
@@ -867,7 +876,7 @@ public class ServiceConfiguration implements PulsarConfiguration {
             category = CATEGORY_POLICIES,
             doc = "Apply dispatch rate limiting on batch message instead individual "
                     + "messages with in batch message. (Default is disabled)")
-        private boolean dispatchThrottlingOnBatchMessageEnabled = false;
+    private boolean dispatchThrottlingOnBatchMessageEnabled = false;
 
     @FieldContext(
         dynamic = true,
@@ -909,6 +918,7 @@ public class ServiceConfiguration implements PulsarConfiguration {
             + " non-backlog consumers as well.")
     private boolean dispatchThrottlingOnNonBacklogConsumerEnabled = true;
 
+    // todo resource class name
     @FieldContext(
             category = CATEGORY_POLICIES,
             doc = "Default policy for publishing usage reports to system topic is disabled."
@@ -916,6 +926,7 @@ public class ServiceConfiguration implements PulsarConfiguration {
     )
     private String resourceUsageTransportClassName = "";
 
+    // todo publish资源上报时间间隔 60s
     @FieldContext(
             dynamic = true,
             category = CATEGORY_POLICIES,
@@ -1735,6 +1746,7 @@ public class ServiceConfiguration implements PulsarConfiguration {
                     + "if allowAutoTopicCreationType is partitioned."
     )
     private int defaultNumPartitions = 1;
+    // todo 管理Ledger存储类
     @FieldContext(
         category = CATEGORY_STORAGE_ML,
         doc = "The class of the managed ledger storage"
@@ -1751,6 +1763,7 @@ public class ServiceConfiguration implements PulsarConfiguration {
     )
     private int managedLedgerNumSchedulerThreads = Runtime.getRuntime().availableProcessors();
 
+    // todo 一个Ledger中最大的Entry数量，达到这个值后，就会切换一个新的Ledger
     @FieldContext(
         category = CATEGORY_STORAGE_ML,
         doc = "Max number of entries to append to a ledger before triggering a rollover.\n\n"
@@ -1760,11 +1773,13 @@ public class ServiceConfiguration implements PulsarConfiguration {
             + " the max entries have been written to the ledger, or"
             + " the max ledger size has been written to the ledger")
     private int managedLedgerMaxEntriesPerLedger = 50000;
+    // todo 一个Ledger被创建出来，如果里面的entry数量没有达到50k，但是时间达到了10分钟，也会切换一个新的Ledger
     @FieldContext(
         category = CATEGORY_STORAGE_ML,
         doc = "Minimum time between ledger rollover for a topic"
     )
     private int managedLedgerMinLedgerRolloverTimeMinutes = 10;
+    // todo 一个Ledger被创建出来后最大的时间，超过这个值，就会创建一个新的Ledger
     @FieldContext(
         category = CATEGORY_STORAGE_ML,
         doc = "Maximum time before forcing a ledger rollover for a topic"

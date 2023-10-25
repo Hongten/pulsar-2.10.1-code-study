@@ -26,6 +26,9 @@ import org.apache.pulsar.broker.service.persistent.DispatchRateLimiter;
 import org.apache.pulsar.common.api.proto.CommandSubscribe.SubType;
 import org.apache.pulsar.common.api.proto.MessageMetadata;
 
+// TODO: 2/22/23 当客户端Consumer预先拉取的消费被消费的差不多的时候，Consumer会主动发送FlowPermits命令给Broker，让Broker返回更多的消息
+//  在broker中，主要由Dispatch负责从Bookie中读取数据，并返回给Consumer，每个订阅都会生成一个Dispatch对象
+
 public interface Dispatcher {
     void addConsumer(Consumer consumer) throws BrokerServiceException;
 

@@ -3170,6 +3170,7 @@ public class PersistentTopicsBase extends AdminResource {
             });
     }
 
+    // TODO: 1/18/23 设置topic的TTL
     protected CompletableFuture<Void> internalSetMessageTTL(Integer ttlInSecond, boolean isGlobal) {
         //Validate message ttl value.
         if (ttlInSecond != null && ttlInSecond < 0) {
@@ -3177,6 +3178,7 @@ public class PersistentTopicsBase extends AdminResource {
                     "Invalid value for message TTL"));
         }
 
+        // TODO: 1/18/23 获取已经存在的策略，如果不存在，则创建一个新的，把最新的值赋予，最后更新策略
         return getTopicPoliciesAsyncWithRetry(topicName, isGlobal)
             .thenCompose(op -> {
                 TopicPolicies topicPolicies = op.orElseGet(TopicPolicies::new);
@@ -4049,6 +4051,7 @@ public class PersistentTopicsBase extends AdminResource {
         return metadataFuture;
     }
 
+    // TODO: 2/23/23 直接获取topic metadata信息
     /**
      * Get partitioned topic metadata without checking the permission.
      */
@@ -4456,6 +4459,7 @@ public class PersistentTopicsBase extends AdminResource {
                     if (applied) {
                         DispatchRateImpl namespacePolicy = getNamespacePolicies(namespaceName)
                                 .topicDispatchRate.get(pulsar().getConfiguration().getClusterName());
+                        // todo 如果设置了namespace的策略，则使用默认的。否则使用namespace已经设置好的
                         return namespacePolicy == null ? dispatchRate() : namespacePolicy;
                     }
                     return null;
@@ -4669,6 +4673,7 @@ public class PersistentTopicsBase extends AdminResource {
                     if (applied) {
                         SubscribeRate namespacePolicy = getNamespacePolicies(namespaceName)
                                 .clusterSubscribeRate.get(pulsar().getConfiguration().getClusterName());
+                        // todo 如果我们配置了subscribeRate，当namespace policy为null时，则使用
                         return namespacePolicy == null ? subscribeRate() : namespacePolicy;
                     }
                     return null;

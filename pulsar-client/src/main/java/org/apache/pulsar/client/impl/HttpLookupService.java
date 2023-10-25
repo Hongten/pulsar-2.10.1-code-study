@@ -74,6 +74,7 @@ public class HttpLookupService implements LookupService {
     }
 
     /**
+     * 一个是 Http 协议实现
      * Calls http-lookup api to find broker-service address which can serve a given topic.
      *
      * @param topicName topic-name
@@ -85,6 +86,8 @@ public class HttpLookupService implements LookupService {
         String basePath = topicName.isV2() ? BasePathV2 : BasePathV1;
         String path = basePath + topicName.getLookupName();
         path = StringUtils.isBlank(listenerName) ? path : path + "?listenerName=" + Codec.encode(listenerName);
+        // TODO: 2/24/23 根据serviceUrl向一个Broker发送 LOOKUP 请求，broker接收到lookup请求之后，
+        //  首先根据请求的topic，查找对应的namespacebundle信息，然后查找bundle所在的broker地址，最后将结果返回给producer
         return httpClient.get(path, LookupData.class)
                 .thenCompose(lookupData -> {
             // Convert LookupData into as SocketAddress, handling exceptions
@@ -101,6 +104,7 @@ public class HttpLookupService implements LookupService {
                 }
 
                 InetSocketAddress brokerAddress = InetSocketAddress.createUnresolved(uri.getHost(), uri.getPort());
+                // TODO: 2/24/23 获取到broker端返回的broker地址信息
                 return CompletableFuture.completedFuture(Pair.of(brokerAddress, brokerAddress));
             } catch (Exception e) {
                 // Failed to parse url
@@ -110,6 +114,7 @@ public class HttpLookupService implements LookupService {
         });
     }
 
+    // TODO: 2/24/23 获取topic的metadata
     @Override
     public CompletableFuture<PartitionedTopicMetadata> getPartitionedTopicMetadata(TopicName topicName) {
         String format = topicName.isV2() ? "admin/v2/%s/partitions" : "admin/%s/partitions";

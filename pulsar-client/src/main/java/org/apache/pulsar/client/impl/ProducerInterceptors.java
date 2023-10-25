@@ -105,6 +105,7 @@ public class ProducerInterceptors implements Closeable {
     }
 
     public void onPartitionsChange(String topicName, int partitions) {
+        // TODO: 10/23/23 可能配置多个拦截器，每个拦截器的分区变更方法
         for (ProducerInterceptor interceptor : interceptors) {
             try {
                 interceptor.onPartitionsChange(topicName, partitions);

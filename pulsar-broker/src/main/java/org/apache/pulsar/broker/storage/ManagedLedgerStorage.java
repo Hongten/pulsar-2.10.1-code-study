@@ -87,6 +87,7 @@ public interface ManagedLedgerStorage extends AutoCloseable {
                                        MetadataStoreExtended metadataStore,
                                        BookKeeperClientFactory bkProvider,
                                        EventLoopGroup eventLoopGroup) throws Exception {
+        // TODO: 12/30/22 默认值 = org.apache.pulsar.broker.ManagedLedgerClientFactory
         final Class<?> storageClass = Class.forName(conf.getManagedLedgerStorageClassName());
         final ManagedLedgerStorage storage = (ManagedLedgerStorage) storageClass.getDeclaredConstructor().newInstance();
         storage.initialize(conf, metadataStore, bkProvider, eventLoopGroup);

@@ -41,6 +41,7 @@ import org.apache.pulsar.metadata.api.MetadataStoreException;
 @Slf4j
 public class BaseResources<T> {
 
+    // todo 设置的策略的zk 节点路径 e.g. get /di_kfk_pulsar_k8s_uat/admin/policies/antifraud_ods/anti_fraud.data_collector.tss_sync
     protected static final String BASE_POLICIES_PATH = "/admin/policies";
     protected static final String BASE_CLUSTERS_PATH = "/admin/clusters";
 

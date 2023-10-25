@@ -285,6 +285,7 @@ public abstract class AdminResource extends PulsarWebResource {
         }
     }
 
+    // todo 获取namespace策略
     protected Policies getNamespacePolicies(NamespaceName namespaceName) {
         try {
             Policies policies = namespaceResources().getPolicies(namespaceName)
@@ -403,6 +404,7 @@ public abstract class AdminResource extends PulsarWebResource {
     }
 
     protected SubscribeRate subscribeRate() {
+        // todo 订阅请求速率
         return new SubscribeRate(
                 pulsar().getConfiguration().getSubscribeThrottlingRatePerConsumer(),
                 pulsar().getConfiguration().getSubscribeRatePeriodPerConsumerInSecond()

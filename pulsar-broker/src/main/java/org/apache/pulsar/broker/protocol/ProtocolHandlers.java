@@ -51,14 +51,31 @@ public class ProtocolHandlers implements AutoCloseable {
      * @return the collection of protocol handlers
      */
     public static ProtocolHandlers load(ServiceConfiguration conf) throws IOException {
+        // TODO: 12/30/22 处理类似KOP的协议加载 messagingProtocols=kafka
+        /**
+         *   # For KoP configuration. Make sure the nar file is existing under 'protocolHandlerDirectory'
+         *   kafkaListeners: "PLAINTEXT://0.0.0.0:9093"
+         *   kafkaAdvertisedListeners: "PLAINTEXT://POD_IP:9093"
+         *   messagingProtocols: "kafka"
+         *   protocolHandlerDirectory: "/pulsar/pulsar-kop"
+         *   narExtractionDirectory: "/pulsar/pulsar-kop"
+         *   brokerEntryMetadataInterceptors: "org.apache.pulsar.common.intercept.AppendIndexMetadataInterceptor"
+         */
+        // TODO: 2/15/23 从我们配置的目录进行加载nar文件。这里会加载一次nar文件。
         ProtocolHandlerDefinitions definitions =
                 ProtocolHandlerUtils.searchForHandlers(
                         conf.getProtocolHandlerDirectory(), conf.getNarExtractionDirectory());
 
         ImmutableMap.Builder<String, ProtocolHandlerWithClassLoader> handlersBuilder = ImmutableMap.builder();
 
+        // TODO: 2/15/23 我们定义了'kafka' .
         conf.getMessagingProtocols().forEach(protocol -> {
 
+            /**
+             * name: kafka
+             * description: Kafka Protocol Handler
+             * handlerClass: io.streamnative.pulsar.handlers.kop.KafkaProtocolHandler
+             */
             ProtocolHandlerMetadata definition = definitions.handlers().get(protocol);
             if (null == definition) {
                 throw new RuntimeException("No protocol handler is found for protocol `" + protocol
@@ -67,6 +84,7 @@ public class ProtocolHandlers implements AutoCloseable {
 
             ProtocolHandlerWithClassLoader handler;
             try {
+                // TODO: 2/15/23 这里会记载第二次nar文件
                 handler = ProtocolHandlerUtils.load(definition, conf.getNarExtractionDirectory());
             } catch (IOException e) {
                 log.error("Failed to load the protocol handler for protocol `" + protocol + "`", e);
@@ -79,6 +97,7 @@ public class ProtocolHandlers implements AutoCloseable {
                 throw new RuntimeException("Malformed protocol handler found for protocol `" + protocol + "`");
             }
 
+            // TODO: 12/30/22 如果有多个协议，都会放入到这个builder里面
             handlersBuilder.put(protocol, handler);
             log.info("Successfully loaded protocol handler for protocol `{}`", protocol);
         });

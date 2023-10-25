@@ -66,6 +66,7 @@ public class PulsarBrokerStarter {
     private static ServiceConfiguration loadConfig(String configFile) throws Exception {
         SLF4JBridgeHandler.removeHandlersForRootLogger();
         SLF4JBridgeHandler.install();
+        // TODO: 12/30/22 读取配置文件
         try (InputStream inputStream = new FileInputStream(configFile)) {
             ServiceConfiguration config = create(inputStream, ServiceConfiguration.class);
             // it validates provided configuration is completed
@@ -77,6 +78,7 @@ public class PulsarBrokerStarter {
     @VisibleForTesting
     @Parameters(commandDescription = "Options")
     private static class StarterArguments {
+        // TODO: 12/30/22 broker配置文件 
         @Parameter(names = {"-c", "--broker-conf"}, description = "Configuration file for Broker")
         private String brokerConfigFile =
                 Paths.get("").toAbsolutePath().normalize().toString() + "/conf/broker.conf";
@@ -132,6 +134,7 @@ public class PulsarBrokerStarter {
     }
 
     private static class BrokerStarter {
+        // TODO: 12/30/22 broker的配置信息
         private final ServiceConfiguration brokerConfig;
         private final PulsarService pulsarService;
         private final BookieServer bookieServer;
@@ -142,6 +145,7 @@ public class PulsarBrokerStarter {
         private final WorkerConfig workerConfig;
 
         BrokerStarter(String[] args) throws Exception {
+            // todo 参数解析
             StarterArguments starterArguments = new StarterArguments();
             JCommander jcommander = new JCommander(starterArguments);
             jcommander.setProgramName("PulsarBrokerStarter");
@@ -152,7 +156,7 @@ public class PulsarBrokerStarter {
                 jcommander.usage();
                 System.exit(-1);
             }
-
+            
             if (starterArguments.generateDocs) {
                 CmdGenerateDocs cmd = new CmdGenerateDocs("pulsar");
                 cmd.addCommand("broker", starterArguments);
@@ -160,14 +164,18 @@ public class PulsarBrokerStarter {
                 System.exit(-1);
             }
 
+            // TODO: 12/30/22 broker配置文件 
             // init broker config
             if (isBlank(starterArguments.brokerConfigFile)) {
                 jcommander.usage();
                 throw new IllegalArgumentException("Need to specify a configuration file for broker");
             } else {
+                // TODO: 12/30/22 默认是加载conf/broker.con配置文件
                 brokerConfig = loadConfig(starterArguments.brokerConfigFile);
             }
 
+            // TODO: 12/30/22 对于已经加载好的broker配置信息，就可以在下面进行使用了
+            // TODO: 12/30/22  DEFAULT_MAX_MESSAGE_SIZE=5MB
             int maxFrameSize = brokerConfig.getMaxMessageSize() + Commands.MESSAGE_SIZE_FRAME_PADDING;
             if (maxFrameSize >= DirectMemoryUtils.maxDirectMemory()) {
                 throw new IllegalArgumentException("Max message size need smaller than jvm directMemory");
@@ -197,6 +205,7 @@ public class PulsarBrokerStarter {
                 functionsWorkerService = null;
             }
 
+            // TODO: 12/30/22 初始化pulsar服务
             // init pulsar service
             pulsarService = new PulsarService(brokerConfig,
                                               workerConfig,
@@ -270,6 +279,7 @@ public class PulsarBrokerStarter {
                 log.info("started bookie autoRecoveryMain.");
             }
 
+            // TODO: 12/30/22 启动pulsar服务，完全把pulsar 服务拉起来
             pulsarService.start();
             log.info("PulsarService started.");
         }
@@ -316,6 +326,7 @@ public class PulsarBrokerStarter {
     }
 
 
+    // todo 主函数，程序入口
     public static void main(String[] args) throws Exception {
         DateFormat dateFormat = new SimpleDateFormat(
             FixedDateFormat.FixedFormat.ISO8601_OFFSET_DATE_TIME_HHMM.getPattern());
@@ -326,10 +337,12 @@ public class PulsarBrokerStarter {
             exception.printStackTrace(System.out);
         });
 
+        // TODO: 12/30/22 初始化好所有要用到的线程池
         BrokerStarter starter = new BrokerStarter(args);
         Runtime.getRuntime().addShutdownHook(
             new Thread(() -> {
                 try {
+                    // TODO: 12/30/22 优雅地关闭broker，就是这个起作用的
                     starter.shutdown();
                 } catch (Throwable t) {
                     log.error("Error while shutting down Pulsar service", t);
@@ -341,12 +354,14 @@ public class PulsarBrokerStarter {
             if (starter.brokerConfig.isSkipBrokerShutdownOnOOM()) {
                 log.error("-- Received OOM exception: {}", oomException.getMessage(), oomException);
             } else {
+                // TODO: 12/30/22 遇到OOM的时候会把broker给停掉
                 log.error("-- Shutting down - Received OOM exception: {}", oomException.getMessage(), oomException);
                 starter.pulsarService.shutdownNow();
             }
         });
 
         try {
+            // TODO: 12/30/22  调用start方法启动pulsar 服务
             starter.start();
         } catch (Throwable t) {
             log.error("Failed to start pulsar service.", t);

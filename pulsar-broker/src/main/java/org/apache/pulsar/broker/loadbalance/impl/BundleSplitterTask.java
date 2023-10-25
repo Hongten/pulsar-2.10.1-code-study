@@ -47,6 +47,7 @@ public class BundleSplitterTask implements BundleSplitStrategy {
         bundleCache = new HashSet<>();
     }
 
+    // TODO: 2/7/23 找到bundles，如果满足条件就会进行分裂
     /**
      * Determines which bundles should be split based on various thresholds.
      *
@@ -61,12 +62,19 @@ public class BundleSplitterTask implements BundleSplitStrategy {
     @Override
     public Set<String> findBundlesToSplit(final LoadData loadData, final PulsarService pulsar) {
         bundleCache.clear();
+        // TODO: 2/7/23 获取pulsar配置
         final ServiceConfiguration conf = pulsar.getConfiguration();
+        // TODO: 2/7/23 namespace上面最多的bundle数量，默认128
         int maxBundleCount = conf.getLoadBalancerNamespaceMaximumBundles();
+        // TODO: 2/7/23 一个bundle上面最多的topic数量，默认为1000
         long maxBundleTopics = conf.getLoadBalancerNamespaceBundleMaxTopics();
+        // TODO: 2/7/23 一个bundle上面最多的生产者和消费者总和，默认值为1000
         long maxBundleSessions = conf.getLoadBalancerNamespaceBundleMaxSessions();
+        // TODO: 2/7/23 一个bundle上面QPS（in+out)总量，默认为30k
         long maxBundleMsgRate = conf.getLoadBalancerNamespaceBundleMaxMsgRate();
+        // TODO: 2/7/23 一个bundle上面的带宽（in+out)总量， 默认为100MB
         long maxBundleBandwidth = conf.getLoadBalancerNamespaceBundleMaxBandwidthMbytes() * LoadManagerShared.MIBI;
+        // TODO: 2/7/23 变量所有的broker，以及broker上面的数据brokerData
         loadData.getBrokerData().forEach((broker, brokerData) -> {
             LocalBrokerData localData = brokerData.getLocalData();
             for (final Map.Entry<String, NamespaceBundleStats> entry : localData.getLastStats().entrySet()) {
@@ -84,6 +92,7 @@ public class BundleSplitterTask implements BundleSplitStrategy {
                     totalMessageRate = longTermData.totalMsgRate();
                     totalMessageThroughput = longTermData.totalMsgThroughput();
                 }
+                // TODO: 2/7/23 达到下面任何一个条件都需要进行分裂操作
                 if (stats.topics > maxBundleTopics || (maxBundleSessions > 0 && (stats.consumerCount
                         + stats.producerCount > maxBundleSessions))
                         || totalMessageRate > maxBundleMsgRate || totalMessageThroughput > maxBundleBandwidth) {

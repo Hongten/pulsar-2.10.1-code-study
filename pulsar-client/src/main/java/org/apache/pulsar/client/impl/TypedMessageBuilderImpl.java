@@ -44,9 +44,13 @@ public class TypedMessageBuilderImpl<T> implements TypedMessageBuilder<T> {
 
     private static final ByteBuffer EMPTY_CONTENT = ByteBuffer.allocate(0);
 
+    // TODO: 10/18/23 生产者基类，用于发送消息
     private final transient ProducerBase<?> producer;
+    // TODO: 10/18/23 消息元数据构建器
     private final transient MessageMetadata msgMetadata = new MessageMetadata();
+    // TODO: 10/18/23 设置消息的Schema
     private final transient Schema<T> schema;
+    // TODO: 10/18/23 消息的缓冲区
     private transient ByteBuffer content;
     private final transient TransactionImpl txn;
 
@@ -75,15 +79,18 @@ public class TypedMessageBuilderImpl<T> implements TypedMessageBuilder<T> {
     @Override
     public MessageId send() throws PulsarClientException {
         try {
+            // TODO: 10/18/23 在同步方法里面调用异步方法sendAsync()
             // enqueue the message to the buffer
             CompletableFuture<MessageId> sendFuture = sendAsync();
 
             if (!sendFuture.isDone()) {
+                // TODO: 10/18/23 当请求还没完成时（主要是尝试触发批量消息发送）
                 // the send request wasn't completed yet (e.g. not failing at enqueuing), then attempt to triggerFlush
                 // it out
                 producer.triggerFlush();
             }
 
+            // TODO: 10/18/23 等待消息发送完毕，返回
             return sendFuture.get();
         } catch (Exception e) {
             throw PulsarClientException.unwrap(e);
@@ -94,10 +101,12 @@ public class TypedMessageBuilderImpl<T> implements TypedMessageBuilder<T> {
     public CompletableFuture<MessageId> sendAsync() {
         Message<T> message = getMessage();
         CompletableFuture<MessageId> sendFuture;
+        // TODO: 10/18/23 开启事务
         if (txn != null) {
             sendFuture = producer.internalSendWithTxnAsync(message, txn);
             txn.registerSendOp(sendFuture);
         } else {
+            // TODO: 10/18/23 未开启事务
             sendFuture = producer.internalSendAsync(message);
         }
         return sendFuture;

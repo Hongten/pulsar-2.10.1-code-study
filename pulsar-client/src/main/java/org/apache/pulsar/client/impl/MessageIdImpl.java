@@ -78,6 +78,7 @@ public class MessageIdImpl implements MessageId {
         return false;
     }
 
+    // todo "messageId=" + messageId.toString()" -> "messageId=31971:2:0:0".
     @Override
     public String toString() {
         return new StringBuilder()

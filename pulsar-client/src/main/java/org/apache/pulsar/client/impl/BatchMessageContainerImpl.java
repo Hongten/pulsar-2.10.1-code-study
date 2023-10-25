@@ -33,6 +33,7 @@ import org.apache.pulsar.common.protocol.Commands;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// TODO: 10/23/23 默认的批量消息容器 
 /**
  * Default batch message container.
  *
@@ -44,16 +45,20 @@ import org.slf4j.LoggerFactory;
  */
 class BatchMessageContainerImpl extends AbstractBatchMessageContainer {
 
+    // TODO: 10/23/23 消息的metadata 
     private MessageMetadata messageMetadata = new MessageMetadata();
     // sequence id for this batch which will be persisted as a single entry by broker
     private long lowestSequenceId = -1L;
     private long highestSequenceId = -1L;
+    // TODO: 10/23/23 消息的metadata和消息 字节 
     private ByteBuf batchedMessageMetadataAndPayload;
+    // TODO: 10/23/23 消息集合 
     private List<MessageImpl<?>> messages = new ArrayList<>();
     protected SendCallback previousCallback = null;
     // keep track of callbacks for individual messages being published in a batch
     protected SendCallback firstCallback;
 
+    // TODO: 10/23/23 用于批量消息时
     @Override
     public boolean add(MessageImpl<?> msg, SendCallback callback) {
 
@@ -62,13 +67,16 @@ class BatchMessageContainerImpl extends AbstractBatchMessageContainer {
                     numMessagesInBatch);
         }
 
+        // TODO: 10/23/23 容器内，第一条消息进来执行初始化操作
         if (++numMessagesInBatch == 1) {
             try {
+                // TODO: 10/23/23 批量消息中，不同消息的一些属性是公共的，所以这里我们以第一条消息的一些数据作为初始化数据，并初始化序列ID
                 // some properties are common amongst the different messages in the batch, hence we just pick it up from
                 // the first message
                 messageMetadata.setSequenceId(msg.getSequenceId());
                 lowestSequenceId = Commands.initBatchMessageMetadata(messageMetadata, msg.getMessageBuilder());
                 this.firstCallback = callback;
+                // TODO: 10/23/23 分配批量消息缓冲区
                 batchedMessageMetadataAndPayload = PulsarByteBufAllocator.DEFAULT
                         .buffer(Math.min(maxBatchSize, ClientCnx.getMaxMessageSize()));
                 if (msg.getMessageBuilder().hasTxnidMostBits() && currentTxnidMostBits == -1) {
@@ -88,11 +96,14 @@ class BatchMessageContainerImpl extends AbstractBatchMessageContainer {
             }
         }
 
+        // TODO: 10/23/23 这里构建一个回调链，这回调链可参考 SendCallback 接口
         if (previousCallback != null) {
             previousCallback.addCallback(msg, callback);
         }
         previousCallback = callback;
+        // TODO: 10/23/23 记录当前消息的大小，然后累计历史消息大小
         currentBatchSizeBytes += msg.getDataBuffer().readableBytes();
+        // TODO: 10/23/23  把当前消息放入消息队列
         messages.add(msg);
 
         if (lowestSequenceId == -1L) {
@@ -183,12 +194,14 @@ class BatchMessageContainerImpl extends AbstractBatchMessageContainer {
 
     @Override
     public OpSendMsg createOpSendMsg() throws IOException {
+        // TODO: 10/23/23 加密消息
         ByteBuf encryptedPayload = producer.encryptMessage(messageMetadata, getCompressedBatchMetadataAndPayload());
         if (encryptedPayload.readableBytes() > ClientCnx.getMaxMessageSize()) {
             discard(new PulsarClientException.InvalidMessageException(
                     "Message size is bigger than " + ClientCnx.getMaxMessageSize() + " bytes"));
             return null;
         }
+        // TODO: 10/23/23 消息数
         messageMetadata.setNumMessagesInBatch(numMessagesInBatch);
         messageMetadata.setHighestSequenceId(highestSequenceId);
         if (currentTxnidMostBits != -1) {
@@ -197,9 +210,11 @@ class BatchMessageContainerImpl extends AbstractBatchMessageContainer {
         if (currentTxnidLeastBits != -1) {
             messageMetadata.setTxnidLeastBits(currentTxnidLeastBits);
         }
+        // TODO: 10/23/23 发送消息命名
         ByteBufPair cmd = producer.sendMessage(producer.producerId, messageMetadata.getSequenceId(),
                 messageMetadata.getHighestSequenceId(), numMessagesInBatch, messageMetadata, encryptedPayload);
 
+        // TODO: 10/23/23 创建发送消息操作
         OpSendMsg op = OpSendMsg.create(messages, cmd, messageMetadata.getSequenceId(),
                 messageMetadata.getHighestSequenceId(), firstCallback);
 

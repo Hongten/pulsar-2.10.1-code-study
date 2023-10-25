@@ -25,21 +25,29 @@ import org.apache.pulsar.common.api.proto.CompressionType;
 import org.apache.pulsar.common.compression.CompressionCodec;
 import org.apache.pulsar.common.compression.CompressionCodecProvider;
 
+// TODO: 10/23/23  批次发送消息的容器
 /**
  * Batch message container framework.
  */
 @Slf4j
 public abstract class AbstractBatchMessageContainer implements BatchMessageContainerBase {
 
+    // TODO: 10/23/23 压缩类型
     protected CompressionType compressionType;
+    // TODO: 10/23/23 压缩器
     protected CompressionCodec compressor;
     protected String topicName;
     protected String producerName;
+    // TODO: 10/23/23 生产者
     protected ProducerImpl producer;
 
+    // TODO: 10/23/23 一批里面最大的消息数量 ，默认为1000
     protected int maxNumMessagesInBatch;
+    // TODO: 10/23/23 一批里面最大的消息大小，默认为128k
     protected int maxBytesInBatch;
+    // TODO: 10/23/23 消息调试记录
     protected int numMessagesInBatch = 0;
+    // TODO: 10/23/23 当前批次的大小
     protected long currentBatchSizeBytes = 0;
 
     protected long currentTxnidMostBits = -1L;
@@ -54,6 +62,7 @@ public abstract class AbstractBatchMessageContainer implements BatchMessageConta
     @Override
     public boolean haveEnoughSpace(MessageImpl<?> msg) {
         int messageSize = msg.getDataBuffer().readableBytes();
+        // TODO: 10/23/23  maxBytesInBatch=128k，即当前批大小 + 消息大小 <= 128k && 消息数 < 1000
         return (
             (maxBytesInBatch <= 0 && (messageSize + currentBatchSizeBytes) <= ClientCnx.getMaxMessageSize())
             || (maxBytesInBatch > 0 && (messageSize + currentBatchSizeBytes) <= maxBytesInBatch)
@@ -61,6 +70,7 @@ public abstract class AbstractBatchMessageContainer implements BatchMessageConta
     }
 
     protected boolean isBatchFull() {
+        // TODO: 10/23/23  maxBytesInBatch=128k, 当前的批大小  >= 128k || 消息数 >= 1000
         return (maxBytesInBatch > 0 && currentBatchSizeBytes >= maxBytesInBatch)
             || (maxBytesInBatch <= 0 && currentBatchSizeBytes >= ClientCnx.getMaxMessageSize())
             || (maxNumMessagesInBatch > 0 && numMessagesInBatch >= maxNumMessagesInBatch);

@@ -27,6 +27,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 class WebTargets {
 
+    // todo 构建路径
     static WebTarget addParts(WebTarget target, String[] parts) {
         if (parts != null && parts.length > 0) {
             for (String part : parts) {

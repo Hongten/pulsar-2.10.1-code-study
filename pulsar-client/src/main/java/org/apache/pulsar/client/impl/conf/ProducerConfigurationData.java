@@ -48,15 +48,21 @@ public class ProducerConfigurationData implements Serializable, Cloneable {
 
     private static final long serialVersionUID = 1L;
 
+    // TODO: 2/24/23 默认batch消息条数
     public static final int DEFAULT_BATCHING_MAX_MESSAGES = 1000;
     public static final int DEFAULT_MAX_PENDING_MESSAGES = 0;
     public static final int DEFAULT_MAX_PENDING_MESSAGES_ACROSS_PARTITIONS = 0;
-
+    // TODO: 2/24/23 topic name
     private String topicName = null;
+    // TODO: 2/24/23 producer name
     private String producerName = null;
+    // TODO: 2/24/23 发送超时时间，默认30s
     private long sendTimeoutMs = 30000;
+    // TODO: 2/24/23 达到最大缓存是否block客户端，默认是false
     private boolean blockIfQueueFull = false;
+    // TODO: 2/24/23 最大缓存的生成请求数，默认为0，即生成一条立刻发送
     private int maxPendingMessages = DEFAULT_MAX_PENDING_MESSAGES;
+    // TODO: 2/24/23 分区topic配置，所有分区的最大缓存数量，默认为0，即生成一条立刻发送
     private int maxPendingMessagesAcrossPartitions = DEFAULT_MAX_PENDING_MESSAGES_ACROSS_PARTITIONS;
     private MessageRoutingMode messageRoutingMode = null;
     private HashingScheme hashingScheme = HashingScheme.JavaStringHash;
@@ -66,13 +72,19 @@ public class ProducerConfigurationData implements Serializable, Cloneable {
     @JsonIgnore
     private MessageRouter customMessageRouter = null;
 
+    // TODO: 2/24/23 batch的最大等待时间
     private long batchingMaxPublishDelayMicros = TimeUnit.MILLISECONDS.toMicros(1);
+    // TODO: 2/24/23 开启batch时，分区切换评率
     private int batchingPartitionSwitchFrequencyByPublishDelay = 10;
+    // TODO: 10/23/23 默认1000条msg
     private int batchingMaxMessages = DEFAULT_BATCHING_MAX_MESSAGES;
+    // TODO: 10/23/23 最大的批大小
     private int batchingMaxBytes = 128 * 1024; // 128KB (keep the maximum consistent as previous versions)
+    // TODO: 2/24/23 客户端默认开启了batch 发送数据
     private boolean batchingEnabled = true; // enabled by default
     @JsonIgnore
     private BatcherBuilder batcherBuilder = BatcherBuilder.DEFAULT;
+    // TODO: 2/24/23 是否开启chunking特性，默认为false
     private boolean chunkingEnabled = false;
 
     @JsonIgnore
@@ -84,17 +96,21 @@ public class ProducerConfigurationData implements Serializable, Cloneable {
     @JsonIgnore
     private Set<String> encryptionKeys = new TreeSet<>();
 
+    // TODO: 2/24/23 压缩类型，默认为NONE
     private CompressionType compressionType = CompressionType.NONE;
 
     // Cannot use Optional<Long> since it's not serializable
     private Long initialSequenceId = null;
 
+    // TODO: 10/23/23 默认情况下，自动partition变更打开
     private boolean autoUpdatePartitions = true;
 
+    // TODO: 10/23/23 监听partition变更时间为默认60s
     private long autoUpdatePartitionsIntervalSeconds = 60;
 
     private boolean multiSchema = true;
 
+    // TODO: 2/24/23 默认为Shared
     private ProducerAccessMode accessMode = ProducerAccessMode.Shared;
 
     private boolean lazyStartPartitionedProducers = false;
@@ -165,6 +181,7 @@ public class ProducerConfigurationData implements Serializable, Cloneable {
     }
 
     public long batchingPartitionSwitchFrequencyIntervalMicros() {
+        // TODO: 10/23/23 开启batch时，分区切换评率 ，batch的最大等待时间 即10ms进行切换
         return this.batchingPartitionSwitchFrequencyByPublishDelay * batchingMaxPublishDelayMicros;
     }
 

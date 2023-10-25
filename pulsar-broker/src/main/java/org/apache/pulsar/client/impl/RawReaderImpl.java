@@ -105,6 +105,7 @@ public class RawReaderImpl implements RawReader {
         return "RawReader(topic=" + getTopic() + ")";
     }
 
+    // TODO: 2/22/23 可以直接使用Bookkeeper Client读取和写入Bookie，没有暴露给pulsar客户端，只在broker中存在
     static class RawConsumerImpl extends ConsumerImpl<byte[]> {
         final BlockingQueue<RawMessageAndCnx> incomingRawMessages;
         final Queue<CompletableFuture<RawMessage>> pendingRawReceives;

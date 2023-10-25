@@ -24,6 +24,7 @@ import java.util.concurrent.CompletableFuture;
 import org.apache.pulsar.broker.namespace.NamespaceService;
 
 /**
+ * todo namespace的bundle split算法
  * Algorithm interface for namespace bundle split.
  */
 public interface NamespaceBundleSplitAlgorithm {

@@ -28,6 +28,7 @@ import org.apache.pulsar.transaction.coordinator.TransactionRecoverTracker;
 import org.apache.pulsar.transaction.coordinator.TransactionTimeoutTracker;
 
 /**
+ * // todo 把事务元数据信息保存在内存中，工厂类
  * The provider that offers in-memory implementation of {@link TransactionMetadataStore}.
  */
 public class InMemTransactionMetadataStoreProvider implements TransactionMetadataStoreProvider {

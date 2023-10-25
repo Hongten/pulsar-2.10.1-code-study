@@ -110,7 +110,8 @@ import org.apache.pulsar.common.util.collections.ConcurrentBitSetRecyclable;
 @SuppressWarnings("checkstyle:JavadocType")
 public class Commands {
 
-    // default message size for transfer
+    // TODO: 10/21/23 默认的消息传输大小为5M 
+    // default message size for transfer 
     public static final int DEFAULT_MAX_MESSAGE_SIZE = 5 * 1024 * 1024;
     public static final int MESSAGE_SIZE_FRAME_PADDING = 10 * 1024;
     public static final int INVALID_MAX_MESSAGE_SIZE = -1;
@@ -232,17 +233,20 @@ public class Commands {
     public static ByteBuf newConnect(String authMethodName, AuthData authData, int protocolVersion, String libVersion,
                                      String targetBroker, String originalPrincipal, AuthData originalAuthData,
                                      String originalAuthMethod) {
+        // TODO: 10/18/23 创建一个CONNECT 命令
         BaseCommand cmd = localCmd(Type.CONNECT);
         CommandConnect connect = cmd.setConnect()
                 .setClientVersion(libVersion != null ? libVersion : "Pulsar Client")
                 .setAuthMethodName(authMethodName);
 
         if (targetBroker != null) {
+            // TODO: 10/18/23 远程broker地址，如果有代理proxy，我们需要指明broker
             // When connecting through a proxy, we need to specify which broker do we want to be proxied through
             connect.setProxyToBrokerUrl(targetBroker);
         }
 
         if (authData != null) {
+            // TODO: 10/18/23 认证信息
             connect.setAuthData(authData.getBytes());
         }
 
@@ -257,6 +261,7 @@ public class Commands {
         if (originalAuthMethod != null) {
             connect.setOriginalAuthMethod(originalAuthMethod);
         }
+        // TODO: 10/18/23 协议版本号设置
         connect.setProtocolVersion(protocolVersion);
         setFeatureFlags(connect.setFeatureFlags());
 
@@ -320,6 +325,7 @@ public class Commands {
     }
 
     public static BaseCommand newSuccessCommand(long requestId) {
+        // TODO: 2/23/23 返回 "SUCCESS"给客户端
         BaseCommand cmd = localCmd(Type.SUCCESS);
         cmd.setSuccess()
                 .setRequestId(requestId);
@@ -341,6 +347,7 @@ public class Commands {
 
     public static BaseCommand newProducerSuccessCommand(long requestId, String producerName, long lastSequenceId,
             SchemaVersion schemaVersion, Optional<Long> topicEpoch, boolean isProducerReady) {
+        // TODO: 2/23/23 如果producer已经存在，则返回 PRODUCER_SUCCESS 状态给生产者
         BaseCommand cmd = localCmd(Type.PRODUCER_SUCCESS);
         CommandProducerSuccess ps = cmd.setProducerSuccess()
                 .setRequestId(requestId)
@@ -504,6 +511,7 @@ public class Commands {
 
     public static ByteBufPair newSend(long producerId, long lowestSequenceId, long highestSequenceId, int numMessaegs,
               ChecksumType checksumType, MessageMetadata messageMetadata, ByteBuf payload) {
+        // TODO: 10/23/23 发送消息命令
         return newSend(producerId, lowestSequenceId, highestSequenceId, numMessaegs,
                 messageMetadata.hasTxnidLeastBits() ? messageMetadata.getTxnidLeastBits() : -1,
                 messageMetadata.hasTxnidMostBits() ? messageMetadata.getTxnidMostBits() : -1,
@@ -513,15 +521,16 @@ public class Commands {
     public static ByteBufPair newSend(long producerId, long sequenceId, long highestSequenceId, int numMessages,
                                       long txnIdLeastBits, long txnIdMostBits, ChecksumType checksumType,
             MessageMetadata messageData, ByteBuf payload) {
+        // TODO: 10/23/23 发送消息命名 type：SEND
         BaseCommand cmd = localCmd(Type.SEND);
         CommandSend send = cmd.setSend()
-                .setProducerId(producerId)
-                .setSequenceId(sequenceId);
+                .setProducerId(producerId) // producerId
+                .setSequenceId(sequenceId); // sequenceId
         if (highestSequenceId >= 0) {
             send.setHighestSequenceId(highestSequenceId);
         }
         if (numMessages > 1) {
-            send.setNumMessages(numMessages);
+            send.setNumMessages(numMessages); // 消息数
         }
         if (txnIdLeastBits >= 0) {
             send.setTxnidLeastBits(txnIdLeastBits);
@@ -530,7 +539,7 @@ public class Commands {
             send.setTxnidMostBits(txnIdMostBits);
         }
         if (messageData.hasTotalChunkMsgSize() && messageData.getTotalChunkMsgSize() > 1) {
-            send.setIsChunk(true);
+            send.setIsChunk(true); // 是否分块发送
         }
 
         if (messageData.hasMarkerType()) {
@@ -724,10 +733,11 @@ public class Commands {
     }
 
     public static ByteBuf newCloseProducer(long producerId, long requestId) {
+        // TODO: 10/23/23 producer关闭命令
         BaseCommand cmd = localCmd(Type.CLOSE_PRODUCER);
         cmd.setCloseProducer()
-            .setProducerId(producerId)
-            .setRequestId(requestId);
+            .setProducerId(producerId) // producerId
+            .setRequestId(requestId); // requestId
         return serializeWithSize(cmd);
     }
 
@@ -788,6 +798,8 @@ public class Commands {
                                       long epoch, boolean userProvidedProducerName,
                                       ProducerAccessMode accessMode, Optional<Long> topicEpoch, boolean isTxnEnabled,
                                       String initialSubscriptionName) {
+        // TODO: 2/24/23 客户端发送PRODUCER请求给broker，来初始化broker端的Producer，并且把producer注册到Topic中。
+        //  这里的producerId和Topic中的Producer的producerId可以关联起来
         BaseCommand cmd = localCmd(Type.PRODUCER);
         CommandProducer producer = cmd.setProducer()
                 .setTopic(topic)
@@ -847,6 +859,7 @@ public class Commands {
     }
 
     public static BaseCommand newPartitionMetadataResponseCommand(int partitions, long requestId) {
+        // TODO: 2/23/23 获取 PARTITIONED_METADATA 响应
         BaseCommand cmd = localCmd(Type.PARTITIONED_METADATA_RESPONSE);
         cmd.setPartitionMetadataResponse()
                 .setPartitions(partitions)
@@ -864,11 +877,12 @@ public class Commands {
     }
 
     public static ByteBuf newLookup(String topic, String listenerName, boolean authoritative, long requestId) {
+        // TODO: 10/18/23 构造LOOKUP命令
         BaseCommand cmd = localCmd(Type.LOOKUP);
         CommandLookupTopic lookup = cmd.setLookupTopic()
-                .setTopic(topic)
-                .setRequestId(requestId)
-                .setAuthoritative(authoritative);
+                .setTopic(topic) // topic
+                .setRequestId(requestId) // requestId
+                .setAuthoritative(authoritative); //
         if (StringUtils.isNotBlank(listenerName)) {
             lookup.setAdvertisedListenerName(listenerName);
         }
@@ -1476,6 +1490,7 @@ public class Commands {
 
     private static ByteBufPair serializeCommandSendWithSize(BaseCommand cmd, ChecksumType checksumType,
             MessageMetadata msgMetadata, ByteBuf payload) {
+        // TODO: 10/23/23 序列化命令，需要按照一定的格式和顺序进行组织
         // / Wire format
         // [TOTAL_SIZE] [CMD_SIZE][CMD] [MAGIC_NUMBER][CHECKSUM] [METADATA_SIZE][METADATA] [PAYLOAD]
 

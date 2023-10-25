@@ -97,6 +97,7 @@ public class NamespaceBundles {
 
     public NamespaceBundle findBundle(TopicName topicName) {
         checkArgument(this.nsname.equals(topicName.getNamespaceObject()));
+        // TODO: 2/23/23 获取到topic的hashcode
         long hashCode = factory.getLongHashCode(topicName.toString());
         NamespaceBundle bundle = getBundle(hashCode);
         if (topicName.getDomain().equals(TopicDomain.non_persistent)) {

@@ -22,6 +22,7 @@ import org.apache.pulsar.common.policies.data.impl.DispatchRateImpl;
 
 /**
  * Dispatch rate.
+ * todo 所有和消费相关的速率限制都使用这个接口
  */
 public interface DispatchRate {
 

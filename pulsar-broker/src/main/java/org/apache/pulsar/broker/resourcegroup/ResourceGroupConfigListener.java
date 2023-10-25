@@ -46,40 +46,51 @@ public class ResourceGroupConfigListener implements Consumer<Notification> {
     private static final Logger LOG = LoggerFactory.getLogger(ResourceGroupConfigListener.class);
     private final ResourceGroupService rgService;
     private final PulsarService pulsarService;
+    // TODO: 2/9/23 所有的resourcegroup资源集合
     private final ResourceGroupResources rgResources;
     private final ResourceGroupNamespaceConfigListener rgNamespaceConfigListener;
 
+    // TODO: 2/9/23 ResourceGroup 配置监听器
     public ResourceGroupConfigListener(ResourceGroupService rgService, PulsarService pulsarService) {
         this.rgService = rgService;
         this.pulsarService = pulsarService;
         this.rgResources = pulsarService.getPulsarResources().getResourcegroupResources();
+        // TODO: 2/9/23 加载所有的resourcegroup，加载zk中的resourcegroup到broker内存中
         loadAllResourceGroups();
         this.rgResources.getStore().registerListener(this);
+        // todo 创建namespace的resourcegroup listener，把namespace和rg绑定在一起
         rgNamespaceConfigListener = new ResourceGroupNamespaceConfigListener(
                 rgService, pulsarService, this);
     }
 
+    // TODO: 2/9/23 加载zk里面的所有resourcegroup，和broker本身内存中的resourcegroup进行比较，如果有新增加的，则把它加入到内存中
     private void loadAllResourceGroups() {
+        // todo 加载所有已有的ZK上面的RG
         rgResources.listResourceGroupsAsync().whenCompleteAsync((rgList, ex) -> {
             if (ex != null) {
                 LOG.error("Exception when fetching resource groups", ex);
                 return;
             }
+            // todo cache里面的RG
             final Set<String> existingSet = rgService.resourceGroupGetAll();
+            // todo zk中的RG
             HashSet<String> newSet = new HashSet<>();
 
             for (String rgName : rgList) {
                 newSet.add(rgName);
             }
 
+            // todo 查找差值
             final Sets.SetView<String> deleteList = Sets.difference(existingSet, newSet);
 
             for (String rgName: deleteList) {
+                // todo 从cache里面删除RG，理论上这里不应该存在差值。
                 deleteResourceGroup(rgName);
             }
 
             final Sets.SetView<String> addList = Sets.difference(newSet, existingSet);
             for (String rgName: addList) {
+                // todo 如果有新加入的RG，则创建
                 pulsarService.getPulsarResources().getResourcegroupResources()
                     .getResourceGroupAsync(rgName).thenAcceptAsync(optionalRg -> {
                     ResourceGroup rg = optionalRg.get();
@@ -96,6 +107,7 @@ public class ResourceGroupConfigListener implements Consumer<Notification> {
         try {
             if (rgService.resourceGroupGet(rgName) != null) {
                 LOG.info("Deleting resource group {}", rgName);
+                // todo 删除RG
                 rgService.resourceGroupDelete(rgName);
             }
         } catch (PulsarAdminException e) {
@@ -107,6 +119,7 @@ public class ResourceGroupConfigListener implements Consumer<Notification> {
         if (rgService.resourceGroupGet(rgName) == null) {
             LOG.info("Creating resource group {}, {}", rgName, rg.toString());
             try {
+                // todo 创建RG操作
                 rgService.resourceGroupCreate(rgName, rg);
             } catch (PulsarAdminException ex1) {
                 LOG.error("Got an exception while creating RG {}", rgName, ex1);

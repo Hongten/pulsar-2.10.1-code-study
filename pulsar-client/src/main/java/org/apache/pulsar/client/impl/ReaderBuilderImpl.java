@@ -79,11 +79,13 @@ public class ReaderBuilderImpl<T> implements ReaderBuilder<T> {
 
     @Override
     public CompletableFuture<Reader<T>> createAsync() {
+        // TODO: 10/17/23 topic名称检测
         if (conf.getTopicNames().isEmpty()) {
             return FutureUtil
                     .failedFuture(new IllegalArgumentException("Topic name must be set on the reader builder"));
         }
 
+        // TODO: 10/17/23 开始位置的设置检测
         if (conf.getStartMessageId() != null && conf.getStartMessageFromRollbackDurationInSec() > 0
                 || conf.getStartMessageId() == null && conf.getStartMessageFromRollbackDurationInSec() <= 0) {
             return FutureUtil

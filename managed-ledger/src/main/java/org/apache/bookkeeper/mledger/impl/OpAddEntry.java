@@ -137,6 +137,7 @@ public class OpAddEntry extends SafeRunnable implements AddCallback, CloseCallba
                     duplicateBuffer = payloadProcessorHandle.getProcessedPayload();
                 }
             }
+            // TODO: 2/24/23 ledger添加Entry操作
             ledger.asyncAddEntry(duplicateBuffer, this, addOpCount);
         } else {
             log.warn("[{}] initiate with unexpected state {}, expect OPEN state.", ml.getName(), state);

@@ -74,6 +74,7 @@ import org.apache.pulsar.transaction.coordinator.proto.TxnStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// todo broker上面事务的总协调者，就是TC
 public class TransactionMetadataStoreService {
 
     private static final Logger LOG = LoggerFactory.getLogger(TransactionMetadataStoreService.class);

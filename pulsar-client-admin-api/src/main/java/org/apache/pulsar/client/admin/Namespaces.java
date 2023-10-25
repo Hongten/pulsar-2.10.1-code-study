@@ -2146,7 +2146,7 @@ public interface Namespaces {
     CompletableFuture<Void> removeDispatchRateAsync(String namespace);
     /**
      * Set message-dispatch-rate (topics under this namespace can dispatch this many messages per second).
-     *
+     * todo 这是基于namespace进行设的消费速率quota，因此，在这个namespace下面的所有topic都会受到影响
      * @param namespace
      * @param dispatchRate
      *            number of messages per second

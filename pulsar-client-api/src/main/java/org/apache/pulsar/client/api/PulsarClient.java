@@ -45,6 +45,8 @@ import org.apache.pulsar.common.classification.InterfaceStability;
 public interface PulsarClient extends Closeable {
 
     /**
+     * todo 默认构造器模式实现，用于新建给定配置的Pulsar实例
+     *
      * Get a new builder instance that can used to configure and build a {@link PulsarClient} instance.
      *
      * @return the {@link ClientBuilder}

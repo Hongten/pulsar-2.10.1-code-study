@@ -38,6 +38,7 @@ import org.apache.pulsar.common.classification.InterfaceStability;
 public interface MessageId extends Comparable<MessageId>, Serializable {
 
     /**
+     * 消息ID序列化成字节数组
      * Serialize the message ID into a byte array.
      *
      * <p>The serialized message id can be stored away and later get deserialized by
@@ -46,6 +47,7 @@ public interface MessageId extends Comparable<MessageId>, Serializable {
     byte[] toByteArray();
 
     /**
+     * 字节数组反序列化消息ID
      * De-serialize a message id from a byte array.
      *
      * @param data
@@ -58,6 +60,7 @@ public interface MessageId extends Comparable<MessageId>, Serializable {
     }
 
     /**
+     * 反序列化消息ID并带有Topic信息，这里用于多Topic情况
      * De-serialize a message id from a byte array with its topic
      * information attached.
      *

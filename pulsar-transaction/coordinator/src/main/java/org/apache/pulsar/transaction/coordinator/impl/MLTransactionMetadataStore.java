@@ -56,6 +56,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * // todo 把事务元数据信息保存在Bookkeeper中
  * The provider that offers managed ledger implementation of {@link TransactionMetadataStore}.
  */
 public class MLTransactionMetadataStore

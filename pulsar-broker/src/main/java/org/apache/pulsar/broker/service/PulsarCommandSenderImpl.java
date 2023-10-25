@@ -214,6 +214,7 @@ public class PulsarCommandSenderImpl implements PulsarCommandSender {
         }
     }
 
+    // TODO: 2/22/23 发送消息给consumer客户端
     @Override
     public ChannelPromise sendMessagesToConsumer(long consumerId, String topicName, Subscription subscription,
             int partitionIdx, List<Entry> entries, EntryBatchSizes batchSizes, EntryBatchIndexesAcks batchIndexesAcks,
@@ -256,6 +257,7 @@ public class PulsarCommandSenderImpl implements PulsarCommandSender {
                     Commands.skipChecksumIfPresent(metadataAndPayload);
                 }
 
+                // TODO: 2/22/23 开始发送消息到consumer
                 if (log.isDebugEnabled()) {
                     log.debug("[{}-{}] Sending message to consumerId {}, msg id {}-{} with batchSize {}",
                             topicName, subscription,  consumerId, entry.getLedgerId(), entry.getEntryId(), batchSize);
@@ -267,6 +269,7 @@ public class PulsarCommandSenderImpl implements PulsarCommandSender {
                     redeliveryCount = redeliveryTracker.incrementAndGetRedeliveryCount(position);
                 }
 
+                // TODO: 2/22/23 把消息写入到socket里面
                 ctx.write(
                         cnx.newMessageAndIntercept(consumerId, entry.getLedgerId(), entry.getEntryId(), partitionIdx,
                                 redeliveryCount, metadataAndPayload,

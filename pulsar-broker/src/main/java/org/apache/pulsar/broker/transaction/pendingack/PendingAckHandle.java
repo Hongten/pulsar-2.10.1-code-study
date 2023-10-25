@@ -33,6 +33,7 @@ import org.apache.pulsar.common.policies.data.TransactionPendingAckStats;
 import org.apache.pulsar.transaction.common.exception.TransactionConflictException;
 
 /**
+ * // todo 是消费者的RM，由于消费是以订阅为单位的，因此每个订阅都有一个PendingAckHandle
  * Handle for processing pending acks for transactions.
  */
 public interface PendingAckHandle {

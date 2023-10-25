@@ -298,6 +298,7 @@ public interface ProducerBuilder<T> extends Cloneable {
      */
     ProducerBuilder<T> messageRouter(MessageRouter messageRouter);
 
+    // TODO: 2/24/23 是否开启batch
     /**
      * Control whether automatic batching of messages is enabled for the producer. <i>default: enabled</i>
      *

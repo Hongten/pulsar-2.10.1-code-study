@@ -37,6 +37,7 @@ import org.apache.pulsar.common.api.proto.BrokerEntryMetadata;
 import org.apache.pulsar.common.api.proto.MessageIdData;
 import org.apache.pulsar.common.api.proto.MessageMetadata;
 
+// TODO: 2/22/23 适合消息不多，但是单条消息消费很久的场景
 @Slf4j
 public class ZeroQueueConsumerImpl<T> extends ConsumerImpl<T> {
 

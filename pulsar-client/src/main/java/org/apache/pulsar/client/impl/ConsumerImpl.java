@@ -111,6 +111,7 @@ import org.apache.pulsar.common.util.collections.GrowableArrayBlockingQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// TODO: 2/22/23 最常用，最基础的消费者实现类，可以消费一个非分区topic或者一个分区
 public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandler.Connection {
     private static final int MAX_REDELIVER_UNACKNOWLEDGED = 1000;
 
@@ -145,6 +146,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
     private final AcknowledgmentsGroupingTracker acknowledgmentsGroupingTracker;
     private final NegativeAcksTracker negativeAcksTracker;
 
+    // todo 消费状态
     protected final ConsumerStatsRecorder stats;
     private final int priorityLevel;
     private final SubscriptionMode subscriptionMode;
@@ -273,9 +275,12 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
         this.poolMessages = conf.isPoolMessages();
         this.paused = conf.isStartPaused();
 
+        // todo 如果客户端设置了 .statsInterval(20, TimeUnit.MICROSECONDS)
         if (client.getConfiguration().getStatsIntervalSeconds() > 0) {
+            // todo [5118b] Prefetched messages: 0 --- Consume throughput received: 9.99 msgs/s --- 0.00 Mbit/s --- Ack sent rate: 1.00 ack/s --- Failed messages: 0 --- batch messages: 0 ---Failed acks: 0
             stats = new ConsumerStatsRecorderImpl(client, conf, this);
         } else {
+            // todo 默认是关闭的
             stats = ConsumerStatsDisabled.INSTANCE;
         }
 

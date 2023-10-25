@@ -100,11 +100,13 @@ public class ProducerBuilderImpl<T> implements ProducerBuilder<T> {
         }
 
         try {
+            // TODO: 10/17/23 设置消息路由模式， 默认为轮询策略
             setMessageRoutingMode();
         } catch (PulsarClientException pce) {
             return FutureUtil.failedFuture(pce);
         }
 
+        // TODO: 2/24/23 创建Producer客户端
         return interceptorList == null || interceptorList.size() == 0
                 ? client.createProducerAsync(conf, schema, null)
                 : client.createProducerAsync(conf, schema, new ProducerInterceptors(interceptorList));
@@ -185,6 +187,7 @@ public class ProducerBuilderImpl<T> implements ProducerBuilder<T> {
         return this;
     }
 
+    // TODO: 2/24/23 是否开启batching
     @Override
     public ProducerBuilder<T> enableBatching(boolean batchMessagesEnabled) {
         conf.setBatchingEnabled(batchMessagesEnabled);
@@ -341,6 +344,7 @@ public class ProducerBuilderImpl<T> implements ProducerBuilder<T> {
     }
 
     private void setMessageRoutingMode() throws PulsarClientException {
+        // TODO: 10/17/23 没有配置任何策略时，使用轮询策略
         if (conf.getMessageRoutingMode() == null && conf.getCustomMessageRouter() == null) {
             messageRoutingMode(MessageRoutingMode.RoundRobinPartition);
         } else if (conf.getMessageRoutingMode() == null && conf.getCustomMessageRouter() != null) {

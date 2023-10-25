@@ -54,6 +54,7 @@ public class CompressionCodecProvider {
 
     public static org.apache.pulsar.common.api.proto.CompressionType convertToWireProtocol(
             CompressionType compressionType) {
+        // TODO: 10/21/23 这个方法的功能就是把客户端的压缩类型转换为pulsar内部的压缩类型 ，这样做的目的在于检测是pulsar有不支持的压缩类型
         switch (compressionType) {
         case NONE:
             return org.apache.pulsar.common.api.proto.CompressionType.NONE;
@@ -61,7 +62,7 @@ public class CompressionCodecProvider {
             return org.apache.pulsar.common.api.proto.CompressionType.LZ4;
         case ZLIB:
             return org.apache.pulsar.common.api.proto.CompressionType.ZLIB;
-        case ZSTD:
+        case ZSTD: // TODO: 10/21/23 org.apache.pulsar.client.api.CompressionType.ZSTD
             return org.apache.pulsar.common.api.proto.CompressionType.ZSTD;
         case SNAPPY:
             return org.apache.pulsar.common.api.proto.CompressionType.SNAPPY;

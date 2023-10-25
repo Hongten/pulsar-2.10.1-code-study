@@ -208,6 +208,7 @@ public class HttpClient implements Closeable {
                     }
                 }
 
+                // TODO: 2/24/23 发送获取topic metadata请求
                 builder.execute().toCompletableFuture().whenComplete((response2, t) -> {
                     if (t != null) {
                         log.warn("[{}] Failed to perform http request: {}", requestUrl, t.getMessage());
@@ -229,6 +230,7 @@ public class HttpClient implements Closeable {
                     }
 
                     try {
+                        // TODO: 2/24/23 获取broker端返回回来的数据，里面包含topic的partition size
                         T data = ObjectMapperFactory.getThreadLocal().readValue(
                                 response2.getResponseBodyAsBytes(), clazz);
                         future.complete(data);

@@ -24,8 +24,8 @@ package org.apache.pulsar.common.policies.data;
  */
 public enum TopicOperation {
     LOOKUP,
-    PRODUCE,
-    CONSUME,
+    PRODUCE, // todo 生产
+    CONSUME, // todo 消费
 
     COMPACT,
     EXPIRE_MESSAGES,

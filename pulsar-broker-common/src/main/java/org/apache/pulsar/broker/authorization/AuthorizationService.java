@@ -554,6 +554,7 @@ public class AuthorizationService {
             return CompletableFuture.completedFuture(true);
         }
 
+        // TODO: 2/23/23 该role是否有权限访问topic
         CompletableFuture<Boolean> allowFuture =
                 provider.allowTopicOperationAsync(topicName, role, operation, authData);
         if (log.isDebugEnabled()) {

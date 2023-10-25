@@ -40,6 +40,7 @@ import org.apache.pulsar.broker.service.streamingdispatch.StreamingDispatcher;
 import org.apache.pulsar.broker.service.streamingdispatch.StreamingEntryReader;
 import org.apache.pulsar.common.api.proto.CommandSubscribe.SubType;
 
+// TODO: 2/22/23 订阅只能被一个消费者消费，并且开启了streaming
 /**
  * A {@link PersistentDispatcherSingleActiveConsumer} implemented {@link StreamingDispatcher}.
  * It'll use {@link StreamingEntryReader} to read new entries instead read as micro batch from managed ledger.

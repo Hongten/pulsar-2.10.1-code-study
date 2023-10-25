@@ -35,8 +35,11 @@ import org.apache.pulsar.common.util.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// TODO: 2/21/23 在很在之前消费速率限流就已经存在，可以看到，可以在topic，subscription，replicator， broker等级别设置消费限流
+// todo dispatch rate limiter
 public class DispatchRateLimiter {
 
+    // TODO: 2/21/23 消费限流类型
     public enum Type {
         TOPIC,
         SUBSCRIPTION,
@@ -49,22 +52,30 @@ public class DispatchRateLimiter {
     private final Type type;
 
     private final BrokerService brokerService;
+    // todo RateLimiter 里面有线程一个线程池，也意味着，我们只要设置了topic的限流策略后，每个topic上面至少一个线程池。
+    //  如果我们有很多个topic（e.g 100w topic)，是否存在性能问题呢？
+    // todo msg 数量限制器
     private RateLimiter dispatchRateLimiterOnMessage;
+    // todo msg 数据大小限制器
     private RateLimiter dispatchRateLimiterOnByte;
 
+    // TODO: 2/21/23 构造器
     public DispatchRateLimiter(PersistentTopic topic, Type type) {
         this.topic = topic;
         this.topicName = topic.getName();
         this.brokerService = topic.getBrokerService();
         this.type = type;
+        // TODO: 2/21/23 更新消费速率
         updateDispatchRate();
     }
 
+    // TODO: 2/21/23 设置broker级别的消费限流速率
     public DispatchRateLimiter(BrokerService brokerService) {
         this.topic = null;
         this.topicName = null;
         this.brokerService = brokerService;
         this.type = Type.BROKER;
+        // TODO: 2/21/23 跟同学消费速率
         updateDispatchRate();
     }
 
@@ -94,6 +105,7 @@ public class DispatchRateLimiter {
      * @return
      */
     public boolean tryDispatchPermit(long msgPermits, long bytePermits) {
+        // todo 是否超过限流值进行判断
         boolean acquiredMsgPermit = msgPermits <= 0 || dispatchRateLimiterOnMessage == null
         // acquiring permits must be < configured msg-rate;
                 || dispatchRateLimiterOnMessage.tryAcquire(msgPermits);
@@ -109,6 +121,7 @@ public class DispatchRateLimiter {
      * @return
      */
     public boolean hasMessageDispatchPermit() {
+        // TODO: 2/22/23 是否还有可用的permit，message有可用permit，并且byte也有可用的permit。即至少有一个超quota了，返回false，都没有超quota，返回true
         return (dispatchRateLimiterOnMessage == null || dispatchRateLimiterOnMessage.getAvailablePermits() > 0)
                 && (dispatchRateLimiterOnByte == null || dispatchRateLimiterOnByte.getAvailablePermits() > 0);
     }
@@ -119,6 +132,7 @@ public class DispatchRateLimiter {
      * @return
      */
     public boolean isDispatchRateLimitingEnabled() {
+        // TODO: 2/22/23 两个task 至少一个不为null
         return dispatchRateLimiterOnMessage != null || dispatchRateLimiterOnByte != null;
     }
 
@@ -145,7 +159,7 @@ public class DispatchRateLimiter {
                 dispatchThrottlingRateInMsg = config.getDispatchThrottlingRatePerReplicatorInMsg();
                 dispatchThrottlingRateInByte = config.getDispatchThrottlingRatePerReplicatorInByte();
                 break;
-            case BROKER:
+            case BROKER: // TODO: 2/22/23 broker的消费限流配置
                 dispatchThrottlingRateInMsg = config.getDispatchThrottlingRateInMsg();
                 dispatchThrottlingRateInByte = config.getDispatchThrottlingRateInByte();
                 break;
@@ -159,28 +173,34 @@ public class DispatchRateLimiter {
                 .dispatchThrottlingRateInMsg(dispatchThrottlingRateInMsg)
                 .dispatchThrottlingRateInByte(dispatchThrottlingRateInByte)
                 .ratePeriodInSecond(1)
+                // TODO: 2/22/23 broker没有这样的配置的
                 .relativeToPublishRate(type != Type.BROKER && config.isDispatchThrottlingRateRelativeToPublishRate())
                 .build();
     }
 
+    // TODO: 2/21/23 更新消费限流速率
     /**
      * Update dispatch-throttling-rate.
      * Topic-level has the highest priority, then namespace-level, and finally use dispatch-throttling-rate in
      * broker-level
      */
     public void updateDispatchRate() {
+        // TODO: 2/21/23 这里为什么要单独处理 SUBSCRIPTION，应该是之前想把每一种type单独处理吧
         switch (type) {
             case SUBSCRIPTION:
                 updateDispatchRate(topic.getSubscriptionDispatchRate());
                 return;
         }
 
+        // TODO: 2/22/23 如果是type=broker ，dispatchRate是获取不到值的
         Optional<DispatchRate> dispatchRate = getTopicPolicyDispatchRate(brokerService, topicName, type);
         if (!dispatchRate.isPresent()) {
             getPoliciesDispatchRateAsync(brokerService).thenAccept(dispatchRateOp -> {
+                // todo 不存在，则创建
                 if (!dispatchRateOp.isPresent()) {
                     dispatchRateOp = Optional.of(createDispatchRate());
                 }
+                // todo 存在，则update操作
                 updateDispatchRate(dispatchRateOp.get());
                 if (type == Type.BROKER) {
                   log.info("configured broker message-dispatch rate {}", dispatchRateOp.get());
@@ -215,12 +235,15 @@ public class DispatchRateLimiter {
         return isDispatchRateNeeded(serviceConfig, policies, topicName, type);
     }
 
+    // TODO: 2/21/23 获取topic的消费限流策略
     public static Optional<DispatchRate> getTopicPolicyDispatchRate(BrokerService brokerService,
                                                                     String topicName, Type type) {
         Optional<DispatchRate> dispatchRate = Optional.empty();
         final ServiceConfiguration serviceConfiguration = brokerService.pulsar().getConfiguration();
+        // TODO: 2/21/23 topic策略必须在 systemTopicEnabled=true，topicLevelPoliciesEnabled=true下面才有效
         if (serviceConfiguration.isSystemTopicEnabled() && serviceConfiguration.isTopicLevelPoliciesEnabled()) {
             try {
+                // todo 如果设置了topic 的policy
                 switch (type) {
                     case TOPIC:
                         dispatchRate = Optional.ofNullable(brokerService.pulsar().getTopicPoliciesService()
@@ -373,16 +396,19 @@ public class DispatchRateLimiter {
         // synchronized to prevent race condition from concurrent zk-watch
         log.info("setting message-dispatch-rate {}", dispatchRate);
 
+        // TODO: 2/22/23 msg，byte速率+时间
         long msgRate = dispatchRate.getDispatchThrottlingRateInMsg();
         long byteRate = dispatchRate.getDispatchThrottlingRateInByte();
         long ratePeriod = dispatchRate.getRatePeriodInSecond();
 
+        // TODO: 2/22/23 是否和生产速率关联
         Supplier<Long> permitUpdaterMsg = dispatchRate.isRelativeToPublishRate()
                 ? () -> getRelativeDispatchRateInMsg(dispatchRate)
                 : null;
         // update msg-rateLimiter
         if (msgRate > 0) {
             if (this.dispatchRateLimiterOnMessage == null) {
+                // TODO: 2/22/23 创建一个新的task
                 this.dispatchRateLimiterOnMessage =
                         RateLimiter.builder()
                                 .scheduledExecutorService(brokerService.pulsar().getExecutor())
@@ -390,13 +416,14 @@ public class DispatchRateLimiter {
                                 .rateTime(ratePeriod)
                                 .timeUnit(TimeUnit.SECONDS)
                                 .permitUpdater(permitUpdaterMsg)
-                                .isDispatchOrPrecisePublishRateLimiter(true)
+                                .isDispatchOrPrecisePublishRateLimiter(true) // TODO: 2/22/23 消费limiter需要设置为true
                                 .build();
             } else {
+                // TODO: 2/22/23 先把现有的task停掉，再启动一个新的task
                 this.dispatchRateLimiterOnMessage.setRate(msgRate, dispatchRate.getRatePeriodInSecond(),
                         TimeUnit.SECONDS, permitUpdaterMsg);
             }
-        } else {
+        } else {// TODO: 2/22/23 如果设置为<=0的值，则关闭现有的task
             // message-rate should be disable and close
             if (this.dispatchRateLimiterOnMessage != null) {
                 this.dispatchRateLimiterOnMessage.close();
@@ -407,6 +434,7 @@ public class DispatchRateLimiter {
         Supplier<Long> permitUpdaterByte = dispatchRate.isRelativeToPublishRate()
                 ? () -> getRelativeDispatchRateInByte(dispatchRate)
                 : null;
+        // TODO: 2/22/23 byte和上面一样的逻辑
         // update byte-rateLimiter
         if (byteRate > 0) {
             if (this.dispatchRateLimiterOnByte == null) {

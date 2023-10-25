@@ -55,6 +55,7 @@ public class ManagedLedgerClientFactory implements ManagedLedgerStorage {
     public void initialize(ServiceConfiguration conf, MetadataStoreExtended metadataStore,
                            BookKeeperClientFactory bookkeeperProvider,
                            EventLoopGroup eventLoopGroup) throws Exception {
+        // TODO: 12/30/22 配置文件，本身是有默认配置的，然后把配置文件中的值覆盖默认值
         ManagedLedgerFactoryConfig managedLedgerFactoryConfig = new ManagedLedgerFactoryConfig();
         managedLedgerFactoryConfig.setMaxCacheSize(conf.getManagedLedgerCacheSizeMB() * 1024L * 1024L);
         managedLedgerFactoryConfig.setCacheEvictionWatermark(conf.getManagedLedgerCacheEvictionWatermark());
@@ -71,7 +72,9 @@ public class ManagedLedgerClientFactory implements ManagedLedgerStorage {
         managedLedgerFactoryConfig.setStatsPeriodSeconds(conf.getManagedLedgerStatsPeriodSeconds());
         managedLedgerFactoryConfig.setManagedCursorInfoCompressionType(conf.getManagedCursorInfoCompressionType());
 
+        // TODO: 12/30/22 bookie client配置
         Configuration configuration = new ClientConfiguration();
+        // TODO: 12/30/22 默认为false 
         if (conf.isBookkeeperClientExposeStatsToPrometheus()) {
             configuration.addProperty(PrometheusMetricsProvider.PROMETHEUS_STATS_LATENCY_ROLLOVER_SECONDS,
                     conf.getManagedLedgerPrometheusStatsLatencyRolloverSeconds());
@@ -82,6 +85,7 @@ public class ManagedLedgerClientFactory implements ManagedLedgerStorage {
         statsProvider.start(configuration);
         StatsLogger statsLogger = statsProvider.getStatsLogger("pulsar_managedLedger_client");
 
+        // TODO: 12/30/22 初始化bookie客户端
         this.defaultBkClient =
                 bookkeeperProvider.create(conf, metadataStore, eventLoopGroup, Optional.empty(), null);
 
@@ -106,6 +110,7 @@ public class ManagedLedgerClientFactory implements ManagedLedgerStorage {
             return bkClient != null ? bkClient : defaultBkClient;
         };
 
+        // TODO: 12/30/22 实例化managed Ledger
         this.managedLedgerFactory =
                 new ManagedLedgerFactoryImpl(metadataStore, bkFactory, managedLedgerFactoryConfig, statsLogger);
     }

@@ -97,14 +97,19 @@ import org.slf4j.LoggerFactory;
 
 public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, ConnectionHandler.Connection {
 
+    // TODO: 10/18/23  生产者ID，用于标识单个连接
     // Producer id, used to identify a producer within a single connection
     protected final long producerId;
 
+    // TODO: 10/18/23 消息ID生成器 
     // Variable is used through the atomic updater
     private volatile long msgIdGenerator;
 
+    // TODO: 10/18/23 待处理消息队列
     private final OpSendMsgQueue pendingMessages;
+    // TODO: 10/18/23 信号量，用于控制发送消息频率
     private final Optional<Semaphore> semaphore;
+    // TODO: 10/18/23 发送超时定时器
     private volatile Timeout sendTimeout = null;
     private final long lookupDeadline;
 
@@ -114,24 +119,32 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
     @SuppressWarnings("unused")
     private volatile long producerDeadline = 0; // gets set on first successful connection
 
+    // TODO: 10/18/23 批量消息容器
     private final BatchMessageContainerBase batchMessageContainer;
+    // TODO: 10/18/23 最新消息发送（状态）标记
     private CompletableFuture<MessageId> lastSendFuture = CompletableFuture.completedFuture(null);
     private LastSendFutureWrapper lastSendFutureWrapper = LastSendFutureWrapper.create(lastSendFuture);
 
+    // TODO: 10/18/23 全局唯一生产者名称
     // Globally unique producer name
     private String producerName;
     private final boolean userProvidedProducerName;
 
+    // TODO: 10/18/23 连接ID
     private String connectionId;
     private String connectedSince;
+    // TODO: 10/18/23 分区索引（ID）
     private final int partitionIndex;
+    // TODO: 10/18/23 生产者状态记录器 
 
     private final ProducerStatsRecorder stats;
 
+    // TODO: 10/18/23 消息压缩类型
     private final CompressionCodec compressor;
 
     static final AtomicLongFieldUpdater<ProducerImpl> LAST_SEQ_ID_PUBLISHED_UPDATER = AtomicLongFieldUpdater
             .newUpdater(ProducerImpl.class, "lastSequenceIdPublished");
+    // TODO: 10/18/23 最后一个发送消息ID
     private volatile long lastSequenceIdPublished;
 
     static final AtomicLongFieldUpdater<ProducerImpl> LAST_SEQ_ID_PUSHED_UPDATER = AtomicLongFieldUpdater
@@ -139,14 +152,18 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
     protected volatile long lastSequenceIdPushed;
     private volatile boolean isLastSequenceIdPotentialDuplicated;
 
+    // TODO: 10/18/23 消息加密器
     private final MessageCrypto msgCrypto;
 
+    // TODO: 10/18/23 KEY生成任务
     private ScheduledFuture<?> keyGeneratorTask = null;
 
+    // TODO: 10/18/23 元数据容器
     private final Map<String, String> metadata;
 
     private Optional<byte[]> schemaVersion = Optional.empty();
 
+    // TODO: 10/18/23 连接句柄
     private final ConnectionHandler connectionHandler;
 
     private ScheduledFuture<?> batchTimerTask;
@@ -156,18 +173,25 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
 
     private boolean errorState;
 
+    // TODO: 10/18/23 原子字段更新器，消息ID
     @SuppressWarnings("rawtypes")
     private static final AtomicLongFieldUpdater<ProducerImpl> msgIdGeneratorUpdater = AtomicLongFieldUpdater
             .newUpdater(ProducerImpl.class, "msgIdGenerator");
 
+    // TODO: 2/24/23 创建 ProducerImpl 实例
     public ProducerImpl(PulsarClientImpl client, String topic, ProducerConfigurationData conf,
                         CompletableFuture<Producer<T>> producerCreatedFuture, int partitionIndex, Schema<T> schema,
                         ProducerInterceptors interceptors, Optional<String> overrideProducerName) {
+        // TODO: 10/18/23 这里producerCreatedFuture，用于实现异步创建
         super(client, topic, conf, producerCreatedFuture, schema, interceptors);
+        // TODO: 2/24/23 创建producerId
         this.producerId = client.newProducerId();
+        // TODO: 2/24/23 producer Name 默认为null，用户提供了以后，会被覆盖
         this.producerName = conf.getProducerName();
         this.userProvidedProducerName = StringUtils.isNotBlank(producerName);
+        // TODO: 2/24/23 partition的序号 ，如果是一个partition的topic，index=-1
         this.partitionIndex = partitionIndex;
+        // TODO: 2/24/23  OpSendMsgQueue
         this.pendingMessages = createPendingMessagesQueue();
         if (conf.getMaxPendingMessages() > 0) {
             this.semaphore = Optional.of(new Semaphore(conf.getMaxPendingMessages(), true));
@@ -176,8 +200,15 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
         }
         overrideProducerName.ifPresent(key -> this.producerName = key);
 
+        // TODO: 10/18/23 默认压缩类型为NONE 
         this.compressor = CompressionCodecProvider.getCompressionCodec(conf.getCompressionType());
 
+        // TODO: 2/24/23 初始化 sequenceId，如果Producer 有配置 initialSequenceId，
+        //  则将 lastSequenceIdPublished 和 lastSequenceIdPushed 都置为 initialSequenceId ，
+        //  将msgIdGenerator 置为 initialSequenceId+1 ；
+        //  如果没有配置，则 lastSequenceIdPublished 和 lastSequenceIdPushed 都置为-1，msgIdGenerator 置为0；
+        //  lastSequenceIdPushed 表示已经 send 到 broker 的消息的 sequenceId，
+        //  lastSequenceIdPublished 表示已经 publish 成功的 message 的 sequenceId
         if (conf.getInitialSequenceId() != null) {
             long initialSequenceId = conf.getInitialSequenceId();
             this.lastSequenceIdPublished = initialSequenceId;
@@ -189,6 +220,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
             this.msgIdGenerator = 0L;
         }
 
+        // TODO: 10/18/23 消息加密
         if (conf.isEncryptionEnabled()) {
             String logCtx = "[" + topic + "] [" + producerName + "] [" + producerId + "]";
 
@@ -209,6 +241,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
             this.msgCrypto = null;
         }
 
+        // TODO: 10/18/23 如果开启消息加密，则加载加密方法和密钥加载器
         if (this.msgCrypto != null) {
             // Regenerate data key cipher at fixed interval
             keyGeneratorTask = client.eventLoopGroup().scheduleWithFixedDelay(catchingAndLoggingThrowables(() -> {
@@ -227,10 +260,12 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
             }), 0L, 4L, TimeUnit.HOURS);
         }
 
+        // TODO: 2/24/23 默认30s，如果设置发消息超时时间，则初始化消息发送超时任务
         if (conf.getSendTimeoutMs() > 0) {
             sendTimeout = client.timer().newTimeout(this, conf.getSendTimeoutMs(), TimeUnit.MILLISECONDS);
         }
 
+        // TODO: 2/24/23 默认30s
         this.lookupDeadline = System.currentTimeMillis() + client.getConfiguration().getLookupTimeoutMs();
         if (conf.isBatchingEnabled()) {
             BatcherBuilder containerBuilder = conf.getBatcherBuilder();
@@ -242,6 +277,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
         } else {
             this.batchMessageContainer = null;
         }
+        // TODO: 2/24/23 多久打印一下数据，比如消费者的消费速度、字节数、消费者总共接收了多少消息等，默认60s
         if (client.getConfiguration().getStatsIntervalSeconds() > 0) {
             stats = new ProducerStatsRecorderImpl(client, conf, this);
         } else {
@@ -251,9 +287,12 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
         if (conf.getProperties().isEmpty()) {
             metadata = Collections.emptyMap();
         } else {
+
             metadata = Collections.unmodifiableMap(new HashMap<>(conf.getProperties()));
         }
 
+        // TODO: 2/24/23 创建ConnectionHandler ，由于ProducerImpl实现了ConnectionHandler.Connection，
+        //  并且继承了HandlerState，因此this本身就有HandlerState，Connection功能
         this.connectionHandler = new ConnectionHandler(this,
             new BackoffBuilder()
                 .setInitialTime(client.getConfiguration().getInitialBackoffIntervalNanos(), TimeUnit.NANOSECONDS)
@@ -262,7 +301,17 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
                 .create(),
             this);
 
+        // TODO: 2/24/23 然后调用ConnectionHandler.grabCnx 查找topic所在的broker地址，然后建立到broker的连接.
+        //  建立好连接后，会向broker端发送PRODUCER请求，broker端接收到请求后，会获取topic信息，并且创建Broker端的producer，
+        //  然后把Broker端的producer注册到topic里面，然后返回给客户端PRODUCER_SUCCESS响应。
+        //  客户端接收到了PRODUCER_SUCCESS响应后，会做下面事情
+        /**
+         * - Producer会根据sequenceId来初始化lastSequenceIdPublished以及msgIdGenerator，逻辑是如果msgIdGenerator为0并且producer没有指定InitialSequenceId，则将lastSequenceIdPublished置为sequenceId，msgIdGenerator置为sequenceId+1
+         * - 如果开启了Batch，则初始化一个定时任务，根据配置的batchingMaxPublishDelayMicros时间来定时发送消息，发送是会将BatchContainer中的所有message遍历封装到send请求中发送到Broker，请求中会携带第一条message的sequenceId和最后一条mesage的sequenceId
+         * - 重新发送pendingMessages中的消息
+         */
         grabCnx();
+        // TODO: 2/24/23 producer的初始化工作完成
     }
 
     protected void semaphoreRelease(final int releaseCountRequest) {
@@ -313,6 +362,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
     CompletableFuture<MessageId> internalSendAsync(Message<?> message) {
         CompletableFuture<MessageId> future = new CompletableFuture<>();
 
+        // TODO: 10/18/23 执行拦截器调用
         MessageImpl<?> interceptorMessage = (MessageImpl) beforeSend(message);
         // Retain the buffer used by interceptors callback to get message. Buffer will release after complete
         // interceptors.
@@ -340,9 +390,11 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
                 return nextMsg;
             }
 
+            // TODO: 10/18/23 发送完成回调函数
             @Override
             public void sendComplete(Exception e) {
                 try {
+                    // TODO: 10/18/23 异常处理
                     if (e != null) {
                         stats.incrementSendFailed();
                         onSendAcknowledgement(interceptorMessage, null, e);
@@ -368,6 +420,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
                             onSendAcknowledgement(msg, null, e);
                             sendCallback.getFuture().completeExceptionally(e);
                         } else {
+                            // TODO: 10/18/23 触发消息发送成功，broker 应答成功时拦截器调用
                             onSendAcknowledgement(msg, msg.getMessageId(), null);
                             sendCallback.getFuture().complete(msg.getMessageId());
                             stats.incrementNumAcksReceived(System.nanoTime() - createdAt);
@@ -410,13 +463,16 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
      */
     private ByteBuf applyCompression(ByteBuf payload) {
         ByteBuf compressedPayload = compressor.encode(payload);
+        // TODO: 10/21/23 释放原消息体 
         payload.release();
         return compressedPayload;
     }
 
     public void sendAsync(Message<?> message, SendCallback callback) {
+        // TODO: 10/18/23 检查是否MessageImpl实例
         checkArgument(message instanceof MessageImpl);
 
+        // TODO: 10/18/23 检查生产者状态是否正常 
         if (!isValidProducerState(callback, message.getSequenceId())) {
             return;
         }
@@ -426,26 +482,34 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
         ByteBuf payload = msg.getDataBuffer();
         int uncompressedSize = payload.readableBytes();
 
+        // TODO: 10/18/23 如果启用队列满则阻塞标志，则请求信号量（阻塞）
+        //  否则，试着请求信号量，如果信号量没有获取成功，则立即返回，并抛异常
         if (!canEnqueueRequest(callback, message.getSequenceId(), uncompressedSize)) {
             return;
         }
 
+        // TODO: 10/21/23 如果启用压缩，则压缩，否则用相同的一块缓冲区
         // If compression is enabled, we are compressing, otherwise it will simply use the same buffer
         ByteBuf compressedPayload = payload;
         boolean compressed = false;
+        // TODO: 10/21/23 如果批量消息没有启用，（这里表示没启用批量消息 )
         // Batch will be compressed when closed
         // If a message has a delayed delivery time, we'll always send it individually
         if (!isBatchMessagingEnabled() || msgMetadata.hasDeliverAtTime()) {
+            // TODO: 10/21/23 进行压缩，然后释放原消息体
             compressedPayload = applyCompression(payload);
             compressed = true;
 
             // validate msg-size (For batching this will be check at the batch completion size)
             int compressedSize = compressedPayload.readableBytes();
+            // TODO: 10/21/23 如果压缩后的大小都大于了最大的消息size，并且没有配置分块发送 
             if (compressedSize > ClientCnx.getMaxMessageSize() && !this.conf.isChunkingEnabled()) {
+                // TODO: 10/21/23 释放压缩消息体 
                 compressedPayload.release();
                 String compressedStr = (!isBatchMessagingEnabled() && conf.getCompressionType() != CompressionType.NONE)
                                            ? "Compressed"
                                            : "";
+                // TODO: 10/21/23 设置回调异常，表示消息已经超大
                 PulsarClientException.InvalidMessageException invalidMessageException =
                         new PulsarClientException.InvalidMessageException(
                                 format("The producer %s of the topic %s sends a %s message with %d bytes that exceeds"
@@ -456,6 +520,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
             }
         }
 
+        // TODO: 10/21/23 不能重用相同的消息（TODO）
         if (!msg.isReplicated() && msgMetadata.hasProducerName()) {
             PulsarClientException.InvalidMessageException invalidMessageException =
                 new PulsarClientException.InvalidMessageException(
@@ -466,11 +531,14 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
             return;
         }
 
+        // TODO: 10/21/23 设置Schema版本 
         if (!populateMessageSchema(msg, callback)) {
             compressedPayload.release();
             return;
         }
 
+        // TODO: 10/21/23 客户端默认开启了batch 发送数据，即假设客户端发送的消息大小为10M，那么会取压缩后的消息大小和传输大小（5M)进行计算
+        // TODO: 10/21/23 出需要发送多少块数据 
         // send in chunks
         int totalChunks = canAddToBatch(msg) ? 1
                 : Math.max(1, compressedPayload.readableBytes()) / ClientCnx.getMaxMessageSize()
@@ -485,15 +553,20 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
         }
 
         try {
+            // TODO: 10/21/23 同步代码块（用对象监视器），确保消息有序发送，这里与后面的消息应答处理相呼应
             synchronized (this) {
                 int readStartIndex = 0;
                 long sequenceId;
+                // TODO: 10/21/23 是否设置了序列ID
                 if (!msgMetadata.hasSequenceId()) {
+                    // TODO: 10/21/23 没有设置，则生成一个序列ID
                     sequenceId = msgIdGeneratorUpdater.getAndIncrement(this);
+                    // TODO: 10/21/23 把生产好的序列ID放回到msgMetadata中，方便后续使用
                     msgMetadata.setSequenceId(sequenceId);
                 } else {
                     sequenceId = msgMetadata.getSequenceId();
                 }
+                // TODO: 10/21/23 是否进行分块发送
                 String uuid = totalChunks > 1 ? String.format("%s-%d", producerName, sequenceId) : null;
                 ChunkedMessageCtx chunkedMessageCtx = totalChunks > 1 ? ChunkedMessageCtx.get(totalChunks) : null;
                 byte[] schemaVersion = totalChunks > 1 && msg.getMessageBuilder().hasSchemaVersion()
@@ -513,9 +586,11 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
                             msg.getMessageBuilder().setOrderingKey(orderingKey);
                         }
                     }
+                    // TODO: 10/21/23 序列化和发送消息
                     serializeAndSendMessage(msg, payload, sequenceId, uuid, chunkId, totalChunks,
                             readStartIndex, ClientCnx.getMaxMessageSize(), compressedPayload, compressed,
                             compressedPayload.readableBytes(), uncompressedSize, callback, chunkedMessageCtx);
+                    // TODO: 10/21/23 更新read 起始index
                     readStartIndex = ((chunkId + 1) * ClientCnx.getMaxMessageSize());
                 }
             }
@@ -550,6 +625,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
         ByteBuf chunkPayload = compressedPayload;
         MessageMetadata msgMetadata = msg.getMessageBuilder();
         if (totalChunks > 1 && TopicName.get(topic).isPersistent()) {
+            // TODO: 10/21/23 如果是块发送，则每次发送5M的数据
             chunkPayload = compressedPayload.slice(readStartIndex,
                     Math.min(chunkMaxSizeInBytes, chunkPayload.readableBytes() - readStartIndex));
             // don't retain last chunk payload and builder as it will be not needed for next chunk-iteration and it will
@@ -564,6 +640,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
                 .setNumChunksFromMsg(totalChunks)
                 .setTotalChunkMsgSize(compressedPayloadSize);
         }
+        // TODO: 10/21/23 如果没有设置发布时间
         if (!msgMetadata.hasPublishTime()) {
             msgMetadata.setPublishTime(client.getClientClock().millis());
 
@@ -571,14 +648,19 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
 
             msgMetadata.setProducerName(producerName);
 
+            // TODO: 10/21/23 设置压缩类型
             if (conf.getCompressionType() != CompressionType.NONE) {
+                // TODO: 10/21/23 把客户端压缩类型转换为服务端的压缩类型
                 msgMetadata
                         .setCompression(CompressionCodecProvider.convertToWireProtocol(conf.getCompressionType()));
             }
+            // TODO: 10/21/23 设置没有压缩的消息大小
             msgMetadata.setUncompressedSize(uncompressedSize);
         }
 
+        // TODO: 10/21/23 块小于等于1
         if (canAddToBatch(msg) && totalChunks <= 1) {
+            // TODO: 10/23/23 是否把消息加入到现有的batch里面
             if (canAddToCurrentBatch(msg)) {
                 // should trigger complete the batch message, new message will add to a new batch and new batch
                 // sequence id use the new message, so that broker can handle the message duplication
@@ -590,6 +672,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
                         log.info("Message with sequence id {} might be a duplicate but cannot be determined at this"
                                 + " time.", sequenceId);
                     }
+                    // TODO: 10/23/23 发送消息
                     doBatchSendAndAdd(msg, callback, payload);
                 } else {
                     // Should flush the last potential duplicated since can't combine potential duplicated messages
@@ -597,6 +680,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
                     if (isLastSequenceIdPotentialDuplicated) {
                         doBatchSendAndAdd(msg, callback, payload);
                     } else {
+                        // TODO: 10/23/23 则把当前消息放入容器（重点）
                         // handle boundary cases where message being added would exceed
                         // batch size and/or max message size
                         boolean isBatchFull = batchMessageContainer.add(msg, callback);
@@ -609,16 +693,21 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
                     isLastSequenceIdPotentialDuplicated = false;
                 }
             } else {
+                // TODO: 10/23/23 如果不可以加入到当前批次，那么就单独发送该消息
                 doBatchSendAndAdd(msg, callback, payload);
             }
         } else {
+            // TODO: 10/23/23 分块发送消息
             // in this case compression has not been applied by the caller
             // but we have to compress the payload if compression is configured
             if (!compressed) {
+                // TODO: 10/23/23 压缩消息
                 chunkPayload = applyCompression(chunkPayload);
             }
+            // TODO: 10/23/23 加密消息
             ByteBuf encryptedPayload = encryptMessage(msgMetadata, chunkPayload);
 
+            // TODO: 10/23/23 记录这次发送了多少条数据
             // When publishing during replication, we need to set the correct number of message in batch
             // This is only used in tracking the publish rate stats
             int numMessages = msg.getMessageBuilder().hasNumMessagesInBatch()
@@ -626,6 +715,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
                     : 1;
             final OpSendMsg op;
             if (msg.getSchemaState() == MessageImpl.SchemaState.Ready) {
+                // TODO: 10/23/23 发送消息命令
                 ByteBufPair cmd = sendMessage(producerId, sequenceId, numMessages, msgMetadata, encryptedPayload);
                 op = OpSendMsg.create(msg, cmd, sequenceId, callback);
             } else {
@@ -643,6 +733,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
             }
             op.chunkedMessageCtx = chunkedMessageCtx;
             lastSendFuture = callback.getFuture();
+            // TODO: 10/23/23 处理发送消息操作
             processOpSendMsg(op);
         }
     }
@@ -763,11 +854,13 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
 
     protected ByteBufPair sendMessage(long producerId, long sequenceId, int numMessages, MessageMetadata msgMetadata,
             ByteBuf compressedPayload) {
+        // TODO: 10/23/23 发送消息命令
         return Commands.newSend(producerId, sequenceId, numMessages, getChecksumType(), msgMetadata, compressedPayload);
     }
 
     protected ByteBufPair sendMessage(long producerId, long lowestSequenceId, long highestSequenceId, int numMessages,
                                       MessageMetadata msgMetadata, ByteBuf compressedPayload) {
+        // TODO: 10/23/23 发送消息命令
         return Commands.newSend(producerId, lowestSequenceId, highestSequenceId, numMessages, getChecksumType(),
                 msgMetadata, compressedPayload);
     }
@@ -782,16 +875,19 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
     }
 
     private boolean canAddToBatch(MessageImpl<?> msg) {
+        // TODO: 10/21/23 客户端默认开启了batch 发送数据
         return msg.getSchemaState() == MessageImpl.SchemaState.Ready
                 && isBatchMessagingEnabled() && !msg.getMessageBuilder().hasDeliverAtTime();
     }
 
     private boolean canAddToCurrentBatch(MessageImpl<?> msg) {
+        // TODO: 10/23/23 检查批量消息容器是否还有空间
         return batchMessageContainer.haveEnoughSpace(msg)
                && (!isMultiSchemaEnabled(false) || batchMessageContainer.hasSameSchema(msg))
                 && batchMessageContainer.hasSameTxn(msg);
     }
 
+    // TODO: 10/23/23 触发批量发送，并把当前消息放入新的批量消息容器
     private void doBatchSendAndAdd(MessageImpl<?> msg, SendCallback callback, ByteBuf payload) {
         if (log.isDebugEnabled()) {
             log.debug("[{}] [{}] Closing out batch to accommodate large message with size {}", topic, producerName,
@@ -865,8 +961,11 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
         return true;
     }
 
+    // TODO: 10/23/23 实现了Runnable
     private static final class WriteInEventLoopCallback implements Runnable {
+        // TODO: 10/23/23 生产者
         private ProducerImpl<?> producer;
+        // TODO: 10/23/23 发送命名
         private ByteBufPair cmd;
         private long sequenceId;
         private ClientCnx cnx;
@@ -890,6 +989,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
             }
 
             try {
+                // TODO: 10/23/23 WriteInEventLoopCallback 类中核心代码，仅仅是通过 channel 发送消息
                 cnx.ctx().writeAndFlush(cmd, cnx.ctx().voidPromise());
                 op.updateSentTimestamp();
             } finally {
@@ -945,8 +1045,10 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
     }
 
 
+    // TODO: 10/23/23 producer关闭
     @Override
     public CompletableFuture<Void> closeAsync() {
+        // TODO: 10/23/23 获取和更新 Producer 状态,如果状态是已关闭，直接返回已关闭，否则直接返回正在关闭
         final State currentState = getAndUpdateState(state -> {
             if (state == State.Closed) {
                 return state;
@@ -954,12 +1056,14 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
             return State.Closing;
         });
 
+        // TODO: 10/23/23 如果当前状态是已关闭或正在关闭，则直接返回关闭成功
         if (currentState == State.Closed || currentState == State.Closing) {
             return CompletableFuture.completedFuture(null);
         }
 
         closeProducerTasks();
 
+        // TODO: 10/23/23 Producer 已关闭，设置关闭状态，并且把正处理消息全部设置为 producer 已关闭异常
         ClientCnx cnx = cnx();
         if (cnx == null || currentState != State.Ready) {
             log.info("[{}] [{}] Closed Producer (not connected)", topic, producerName);
@@ -967,12 +1071,17 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
             return CompletableFuture.completedFuture(null);
         }
 
+        // TODO: 10/23/23 生成 producer 关闭命令，向 broker 注销自己 
         long requestId = client.newRequestId();
         ByteBuf cmd = Commands.newCloseProducer(producerId, requestId);
 
         CompletableFuture<Void> closeFuture = new CompletableFuture<>();
+        // TODO: 10/23/23 发送producer关闭命令给broker 
         cnx.sendRequestWithId(cmd, requestId).handle((v, exception) -> {
             cnx.removeProducer(producerId);
+            // TODO: 10/23/23 要么 已经成功从 broker 接收到关闭 producer 的应答命令，
+            //  要么 此时与broker连接已经被破坏，无论什么情况， producer 将关闭（设置状态为 关闭，并且把正处理的消息都释放，
+            //  其队列将被清理，其他的资源也被释放）
             if (exception == null || !cnx.ctx().channel().isActive()) {
                 // Either we've received the success response for the close producer command from the broker, or the
                 // connection did break in the meantime. In any case, the producer is gone.
@@ -1043,10 +1152,14 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
         }
     }
 
+    // TODO: 10/23/23 客户端实际处理 broker 的应答
     void ackReceived(ClientCnx cnx, long sequenceId, long highestSequenceId, long ledgerId, long entryId) {
         OpSendMsg op = null;
+        // TODO: 10/23/23 同步代码块（对象监视器）
         synchronized (this) {
+            // TODO: 10/23/23 从正处理消息队列查看一消息发送指令
             op = pendingMessages.peek();
+            // TODO: 10/23/23 如果为空，则意味着已超时处理，返回
             if (op == null) {
                 if (log.isDebugEnabled()) {
                     log.debug("[{}] [{}] Got ack for timed out msg {} - {}",
@@ -1055,6 +1168,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
                 return;
             }
 
+            // TODO: 10/23/23 这种情况（不知什么情况会出现），应该强制关闭连接，消息应该在新连接里重新传输
             if (sequenceId > op.sequenceId) {
                 log.warn("[{}] [{}] Got ack for msg. expecting: {} - {} - got: {} - {} - queue-size: {}",
                         topic, producerName, op.sequenceId, op.highestSequenceId, sequenceId, highestSequenceId,
@@ -1063,6 +1177,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
                 cnx.channel().close();
                 return;
             } else if (sequenceId < op.sequenceId) {
+                // TODO: 10/23/23 不管这种应答，因为这消息已经被超时处理 
                 // Ignoring the ack since it's referring to a message that has already timed out.
                 if (log.isDebugEnabled()) {
                     log.debug("[{}] [{}] Got ack for timed out msg. expecting: {} - {} - got: {} - {}",
@@ -1070,6 +1185,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
                 }
                 return;
             } else {
+                // TODO: 10/23/23 消息已被正常处理 
                 // Add check `sequenceId >= highestSequenceId` for backward compatibility.
                 if (sequenceId >= highestSequenceId || highestSequenceId == op.highestSequenceId) {
                     // Message was persisted correctly
@@ -1092,6 +1208,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
 
         OpSendMsg finalOp = op;
         LAST_SEQ_ID_PUBLISHED_UPDATER.getAndUpdate(this, last -> Math.max(last, getHighestSequenceId(finalOp)));
+        // TODO: 10/23/23  生成消息ID
         op.setMessageId(ledgerId, entryId, partitionIndex);
         if (op.totalChunks > 1) {
             if (op.chunkId == 0) {
@@ -1528,10 +1645,13 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
             if (!changeToConnecting()) {
                 return;
             }
+            // TODO: 10/18/23 在 CliectCnx 注册生产者之前设置 ClientCnx 引用，是为了创建生产者之前释放 cnx 对象，
+            //  生成一个新的 cnx 对象
             // We set the cnx reference before registering the producer on the cnx, so if the cnx breaks before creating
             // the producer, it will try to grab a new cnx. We also increment and get the epoch value for the producer.
             epoch = connectionHandler.switchClientCnx(cnx);
         }
+        // TODO: 2/24/23 注册当前的producerImpl到 客户端缓存 producers
         cnx.registerProducer(producerId, this);
 
         log.info("[{}] [{}] Creating producer on cnx {}", topic, producerName, cnx.ctx().channel());
@@ -1541,10 +1661,13 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
         PRODUCER_DEADLINE_UPDATER
             .compareAndSet(this, 0, System.currentTimeMillis() + client.getConfiguration().getOperationTimeoutMs());
 
+        // TODO: 2/24/23 topic schema信息
         SchemaInfo schemaInfo = null;
         if (schema != null) {
             if (schema.getSchemaInfo() != null) {
                 if (schema.getSchemaInfo().getType() == SchemaType.JSON) {
+                    // TODO: 10/18/23 为了向后兼容目的，JSONSchema最初基于JSON模式标准为pojo生成了一个模式，
+                    //  但现在已经对每个模式进行了标准化（处理）以生成基于Avro的模式
                     // for backwards compatibility purposes
                     // JSONSchema originally generated a schema for pojo based of of the JSON schema standard
                     // but now we have standardized on every schema to generate an Avro based schema
@@ -1566,27 +1689,43 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
             }
         }
 
+        // TODO: 10/18/23 向broker注册生产者
         cnx.sendRequestWithId(
+                // TODO: 2/24/23  发送 PRODUCER 请求到broker。broker接收到 PRODUCER 请求之后，会进行以下操作
+                /**
+                 * - 获取Topic信息
+                 * - 检查 Topic 是否超出了BacklogQuota的限制，如果超过则返回异常，异常根据BacklogQuota.RetentionPolicy的不同而不同，
+                 * 如果policy是producer_request_hold，
+                 * client接收到异常之后，会阻塞Producer的创建；如果是producer_exception则会抛出异常
+                 * - 创建服务端的Producer对象，并将Producer注册到Topic中
+                 * - 返回 PRODUCER_SUCCESS响应给Producer，会携带消息去重中的最大sequenceId
+                 */
                 Commands.newProducer(topic, producerId, requestId, producerName, conf.isEncryptionEnabled(), metadata,
                         schemaInfo, epoch, userProvidedProducerName,
                         conf.getAccessMode(), topicEpoch, client.conf.isEnableTransaction(),
                         conf.getInitialSubscriptionName()),
                 requestId).thenAccept(response -> {
+            // TODO: 10/18/23 这里表示注册成功
+            // TODO: 2/24/23 接收到PRODUCER_SUCCESS响应之后，Producer会根据sequenceId来初始化lastSequenceIdPublished以及msgIdGenerator，
+            //  逻辑是如果msgIdGenerator为0并且producer没有指定InitialSequenceId，则将lastSequenceIdPublished置为sequenceId，msgIdGenerator置为sequenceId+1
                     String producerName = response.getProducerName();
                     long lastSequenceId = response.getLastSequenceId();
                     schemaVersion = Optional.ofNullable(response.getSchemaVersion());
                     schemaVersion.ifPresent(v -> schemaCache.put(SchemaHash.of(schema), v));
 
+            // TODO: 10/18/23 重新连接到 broker ，并且 清空发送的消息。重新发送正处理的消息，设置 cnx 对象，有新消息将立即发送。 
                     // We are now reconnected to broker and clear to send messages. Re-send all pending messages and
                     // set the cnx pointer so that new messages will be sent immediately
                     synchronized (ProducerImpl.this) {
                         if (getState() == State.Closing || getState() == State.Closed) {
+                            // TODO: 10/18/23 当正在重连的时候，生产者将被关闭，关闭连接确保 broker 释放生产者相关资源
                             // Producer was closed while reconnecting, close the connection to make sure the broker
                             // drops the producer on its side
                             cnx.removeProducer(producerId);
                             cnx.channel().close();
                             return;
                         }
+                        // TODO: 10/18/23 重置定时重连器
                         resetBackoff();
 
                         log.info("[{}] [{}] Created producer on cnx {}", topic, producerName, cnx.ctx().channel());
@@ -1602,6 +1741,8 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
                         }
 
                         if (this.msgIdGenerator == 0 && conf.getInitialSequenceId() == null) {
+                            // TODO: 10/18/23 仅更新序列ID生成器（如果尚未修改）。 这意味着我们只想在第一次建立连接时更新id生成器，
+                            //  并忽略 broker 在后续生成器重新连接中发送的序列ID
                             // Only update sequence id generator if it wasn't already modified. That means we only want
                             // to update the id generator the first time the producer gets established, and ignore the
                             // sequence id sent by broker in subsequent producer reconnects
@@ -1609,6 +1750,9 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
                             this.msgIdGenerator = lastSequenceId + 1;
                         }
 
+                        // TODO: 2/24/23  如果开启了Batch，则初始化一个定时任务，根据配置的batchingMaxPublishDelayMicros时间来定时发送消息，
+                        //  发送是会将BatchContainer中的所有message遍历封装到send请求中发送到Broker，
+                        //  请求中会携带第一条message的sequenceId和最后一条mesage的sequenceId
                         if (!producerCreatedFuture.isDone() && isBatchMessagingEnabled()) {
                             // schedule the first batch message task
                             batchTimerTask = cnx.ctx().executor()
@@ -1632,12 +1776,15 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
                                         }
                                     }), 0, conf.getBatchingMaxPublishDelayMicros(), TimeUnit.MICROSECONDS);
                         }
+                        // TODO: 2/24/23 重新发送pendingMessages中的消息
                         resendMessages(cnx, epoch);
                     }
                 }).exceptionally((e) -> {
+            // TODO: 10/18/23 注册生产者失败 
                     Throwable cause = e.getCause();
                     cnx.removeProducer(producerId);
                     if (getState() == State.Closing || getState() == State.Closed) {
+                        // TODO: 10/18/23 当正在重连的时候，生产者将被关闭，关闭连接确保 broker 释放生产者相关资源 
                         // Producer was closed while reconnecting, close the connection to make sure the broker
                         // drops the producer on its side
                         cnx.channel().close();
@@ -1671,6 +1818,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
                         });
                         return null;
                     }
+            // TODO: 10/18/23 生产者 Topic 配额超出异常，可能连接已到上限 
                     if (cause instanceof PulsarClientException.ProducerBlockedQuotaExceededException) {
                         synchronized (this) {
                             log.warn("[{}] [{}] Topic backlog quota exceeded. Throwing Exception on producer.", topic,
@@ -1684,13 +1832,16 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
                             PulsarClientException bqe = new PulsarClientException.ProducerBlockedQuotaExceededException(
                                 format("The backlog quota of the topic %s that the producer %s produces to is exceeded",
                                     topic, producerName));
+                            // TODO: 10/18/23 注册失败时，可能要把正处理的消息全部设置成异常失败
                             failPendingMessages(cnx(), bqe);
                         }
+                        // TODO: 10/18/23 生产者 Topic 积压配额错误 
                     } else if (cause instanceof PulsarClientException.ProducerBlockedQuotaExceededError) {
                         log.warn("[{}] [{}] Producer is blocked on creation because backlog exceeded on topic.",
                                 producerName, topic);
                     }
 
+            // TODO: 10/18/23 topic已关闭异常 
                     if (cause instanceof PulsarClientException.TopicTerminatedException) {
                         setState(State.Terminated);
                         synchronized (this) {
@@ -1714,6 +1865,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
                         // still within the initial timeout budget and we are dealing with a retriable error
                         reconnectLater(cause);
                     } else {
+                        // TODO: 10/18/23  设置生产者创建失败
                         setState(State.Failed);
                         producerCreatedFuture.completeExceptionally(cause);
                         closeProducerTasks();
@@ -1752,18 +1904,21 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
     }
 
     private void closeProducerTasks() {
+        // TODO: 10/23/23 如果定时器不为空，则取消
         Timeout timeout = sendTimeout;
         if (timeout != null) {
             timeout.cancel();
             sendTimeout = null;
         }
 
+        // TODO: 10/23/23 批量消息发送定时器不为空，则取消
         ScheduledFuture<?> batchTimerTask = this.batchTimerTask;
         if (batchTimerTask != null) {
             batchTimerTask.cancel(false);
             this.batchTimerTask = null;
         }
 
+        // TODO: 10/23/23 取消数据加密key加载任务
         if (keyGeneratorTask != null && !keyGeneratorTask.isCancelled()) {
             keyGeneratorTask.cancel(false);
         }
@@ -1771,6 +1926,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
         stats.cancelStatsTimeout();
     }
 
+    // TODO: 2/24/23 重新发送pendingMessages中的消息
     private void resendMessages(ClientCnx cnx, long expectedEpoch) {
         cnx.ctx().channel().eventLoop().execute(() -> {
             synchronized (this) {
@@ -1856,6 +2012,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
         return producerName;
     }
 
+    // TODO: 10/23/23 ProducerImpl 内，检查超时请求，主要用于消息发送超时检查
     /**
      * Process sendTimeout events.
      */
@@ -1868,21 +2025,27 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
         long timeToWaitMs;
 
         synchronized (this) {
+            // TODO: 10/23/23 如果当前处于正在关闭或已关闭状态则忽略本次超时检查
             // If it's closing/closed we need to ignore this timeout and not schedule next timeout.
             if (getState() == State.Closing || getState() == State.Closed) {
                 return;
             }
 
+            // TODO: 10/23/23  取出第一个消息（如果第一个消息都超时了，意味着后面的消息肯定全部超时了）
             OpSendMsg firstMsg = pendingMessages.peek();
             if (firstMsg == null) {
+                // TODO: 10/23/23 发送超时时间，默认30s ，如果没有正在处理的消息，则重置超时时间为配置值
                 // If there are no pending messages, reset the timeout to the configured value.
                 timeToWaitMs = conf.getSendTimeoutMs();
             } else {
+                // TODO: 10/23/23 如果至少有一个消息，则计算超时时间点差值与当前时间
                 // If there is at least one message, calculate the diff between the message timeout and the elapsed
                 // time since first message was created.
                 long diff = conf.getSendTimeoutMs()
                         - TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - firstMsg.createdAt);
                 if (diff <= 0) {
+                    // TODO: 10/23/23 如果差值小于或等于0，则意味着消息已（发送或应答）超时，
+                    //  每个消息都设置回调为超时异常，并情况正处理消息队列
                     // The diff is less than or equal to zero, meaning that the message has been timed out.
                     // Set the callback to timeout on every message, then clear the pending queue.
                     log.info("[{}] [{}] Message send timed out. Failing {} messages", topic, producerName,
@@ -1892,9 +2055,11 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
                         format("The producer %s can not send message to the topic %s within given timeout",
                             producerName, topic), firstMsg.sequenceId);
                     failPendingMessages(cnx(), te);
+                    // TODO: 10/23/23 一旦正处理消息队列被清空，则重置超时时间为配置值
                     // Since the pending queue is cleared now, set timer to expire after configured value.
                     timeToWaitMs = conf.getSendTimeoutMs();
                 } else {
+                    // TODO: 10/23/23 如果差值大于0，则设置此时间为超时时间（意味着下次这时间间隔将再次检查，而不是配置值）
                     // The diff is greater than zero, set the timeout to the diff value
                     timeToWaitMs = diff;
                 }
@@ -1905,6 +2070,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
     }
 
     /**
+     * todo 注册失败时，可能要把正处理的消息全部设置成异常失败
      * This fails and clears the pending messages with the given exception. This method should be called from within the
      * ProducerImpl object mutex.
      */
@@ -1936,10 +2102,12 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
             pendingMessages.clear();
             semaphoreRelease(releaseCount.get());
             if (batchMessagingEnabled) {
+                // TODO: 10/18/23 如果批量消息发送启用，则也设置
                 failPendingBatchMessages(ex);
             }
 
         } else {
+            // TODO: 10/18/23 如果还有连接，那么应该在事件循环线程上执行回调和循环（调用），以避免任何竞争条件，因为我们也在这个线程上写消息
             // If we have a connection, we schedule the callback and recycle on the event loop thread to avoid any
             // race condition since we also write the message on the socket from this thread
             cnx.ctx().channel().eventLoop().execute(() -> {
@@ -1951,6 +2119,7 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
     }
 
     /**
+     * todo 批量消息里面也设置为异常
      * fail any pending batch messages that were enqueued, however batch was not closed out.
      *
      */
@@ -1987,22 +2156,27 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
         }
     }
 
+    // TODO: 10/23/23 在入队列之前，必须申请到信号量（这里主要防止内存溢出，当然也一定程度也保护 broker）
     // must acquire semaphore before enqueuing
     private void batchMessageAndSend() {
         if (log.isTraceEnabled()) {
             log.trace("[{}] [{}] Batching the messages from the batch container with {} messages", topic, producerName,
                     batchMessageContainer.getNumMessagesInBatch());
         }
+        // TODO: 10/23/23 如果批量消息中消息队列不为空
         if (!batchMessageContainer.isEmpty()) {
             try {
                 List<OpSendMsg> opSendMsgs;
+                // TODO: 10/23/23 是否为多批
                 if (batchMessageContainer.isMultiBatches()) {
                     opSendMsgs = batchMessageContainer.createOpSendMsgs();
                 } else {
                     opSendMsgs = Collections.singletonList(batchMessageContainer.createOpSendMsg());
                 }
+                // TODO: 10/23/23 清理批量消息容器，下一次使用
                 batchMessageContainer.clear();
                 for (OpSendMsg opSendMsg : opSendMsgs) {
+                    // TODO: 10/23/23 放入待处理消息队列，用于检查应答是否超时
                     processOpSendMsg(opSendMsg);
                 }
             } catch (PulsarClientException e) {
@@ -2014,12 +2188,15 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
         }
     }
 
+    // TODO: 10/23/23 这里是处理发送消息的操作
     protected void processOpSendMsg(OpSendMsg op) {
         if (op == null) {
             return;
         }
         try {
+            // TODO: 10/23/23 如果配置了批量发送
             if (op.msg != null && isBatchMessagingEnabled()) {
+                // TODO: 10/23/23 进行批量发送操作
                 batchMessageAndSend();
             }
             pendingMessages.add(op);
@@ -2034,10 +2211,14 @@ public class ProducerImpl<T> extends ProducerBase<T> implements TimerTask, Conne
                     tryRegisterSchema(cnx, op.msg, op.callback, this.connectionHandler.getEpoch());
                     return;
                 }
+                // TODO: 10/23/23 发送消息
                 // If we do have a connection, the message is sent immediately, otherwise we'll try again once a new
                 // connection is established
+                // TODO: 10/23/23 如果还有正常的连接，消息将被立即发送，否则尝试建立新的连接
                 op.cmd.retain();
+                // TODO: 10/23/23 这里才是把消息放入通道，发送出去
                 cnx.ctx().channel().eventLoop().execute(WriteInEventLoopCallback.create(this, cnx, op));
+                // TODO: 10/23/23 状态更新
                 stats.updateNumMsgsSent(op.numMessagesInBatch, op.batchSizeByte);
             } else {
                 if (log.isDebugEnabled()) {

@@ -40,12 +40,12 @@ Configuration:
         value: "Console"
 
   # Example: logger-filter script
-#  Scripts:
-#    ScriptFile:
-#      name: filter.js
-#      language: JavaScript
-#      path: ./conf/log4j2-scripts/filter.js
-#      charset: UTF-8
+  #  Scripts:
+  #    ScriptFile:
+  #      name: filter.js
+  #      language: JavaScript
+  #      path: ./conf/log4j2-scripts/filter.js
+  #      charset: UTF-8
 
   Appenders:
 
@@ -72,13 +72,13 @@ Configuration:
           size: 1 GB
       # Delete file older than 30days
       DefaultRolloverStrategy:
-          Delete:
-            basePath: ${sys:pulsar.log.dir}
-            maxDepth: 2
-            IfFileName:
-              glob: "*/${sys:pulsar.log.file}*log.gz"
-            IfLastModified:
-              age: 30d
+        Delete:
+          basePath: ${sys:pulsar.log.dir}
+          maxDepth: 2
+          IfFileName:
+            glob: "*/${sys:pulsar.log.file}*log.gz"
+          IfLastModified:
+            age: 30d
 
     Prometheus:
       name: Prometheus
@@ -114,13 +114,13 @@ Configuration:
                           schedule: "0 0 0 * * ?"
                       # Delete file older than 30days
                       DefaultRolloverStrategy:
-                          Delete:
-                            basePath: ${sys:pulsar.log.dir}
-                            maxDepth: 2
-                            IfFileName:
-                              glob: "*/${sys:pulsar.log.file}*log.gz"
-                            IfLastModified:
-                              age: 30d
+                        Delete:
+                          basePath: ${sys:pulsar.log.dir}
+                          maxDepth: 2
+                          IfFileName:
+                            glob: "*/${sys:pulsar.log.file}*log.gz"
+                          IfLastModified:
+                            age: 30d
                   - ref: "${sys:pulsar.routing.appender.default}"
                     key: "${ctx:function}"
           - ref: "${sys:pulsar.routing.appender.default}"
@@ -150,6 +150,12 @@ Configuration:
         additivity: false
         AppenderRef:
           - ref: Console
+
+      - name: io.streamnative.pulsar.handlers.kop
+        level: debug
+        additivity: false
+        AppenderRef:
+          - ref: RollingFile
 
     # Logger to inject filter script
 #     - name: org.apache.bookkeeper.mledger.impl.ManagedLedgerImpl

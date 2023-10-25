@@ -277,6 +277,7 @@ public class CmdTopicPolicies extends CmdBase {
         @Parameter(description = "persistent://tenant/namespace/topic", required = true)
         private java.util.List<String> params;
 
+        // TODO: 1/18/23 设置topic的ttl
         @Parameter(names = { "-t", "--ttl" }, description = "Message TTL for topic in second, "
                 + "allowed range from 1 to Integer.MAX_VALUE", required = true)
         private int messageTTLInSecond;
@@ -291,6 +292,7 @@ public class CmdTopicPolicies extends CmdBase {
                 throw new ParameterException(String.format("Invalid retention policy type '%d'. ", messageTTLInSecond));
             }
 
+            // TODO: 1/18/23 参数校验
             String persistentTopic = validatePersistentTopic(params);
             getTopicPolicies(isGlobal).setMessageTTL(persistentTopic, messageTTLInSecond);
         }

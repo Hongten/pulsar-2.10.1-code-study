@@ -45,6 +45,7 @@ public class HierarchyTopicPolicies {
     final PolicyHierarchyValue<Integer> maxProducersPerTopic;
     final Map<BacklogQuotaType, PolicyHierarchyValue<BacklogQuota>> backLogQuotaMap;
     final PolicyHierarchyValue<Integer> topicMaxMessageSize;
+    // todo 消息的TTL设置
     final PolicyHierarchyValue<Integer> messageTTLInSeconds;
     final PolicyHierarchyValue<Long> compactionThreshold;
     final PolicyHierarchyValue<Integer> maxConsumerPerTopic;
@@ -73,6 +74,7 @@ public class HierarchyTopicPolicies {
                 .put(BacklogQuotaType.message_age, new PolicyHierarchyValue<>())
                 .build();
         topicMaxMessageSize = new PolicyHierarchyValue<>();
+        // todo 对 messageTTLInSeconds 进行初始化
         messageTTLInSeconds = new PolicyHierarchyValue<>();
         publishRate = new PolicyHierarchyValue<>();
         delayedDeliveryEnabled = new PolicyHierarchyValue<>();

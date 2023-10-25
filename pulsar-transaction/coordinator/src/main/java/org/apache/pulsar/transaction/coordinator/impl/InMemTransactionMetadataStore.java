@@ -35,6 +35,7 @@ import org.apache.pulsar.transaction.coordinator.exceptions.CoordinatorException
 import org.apache.pulsar.transaction.coordinator.proto.TxnStatus;
 
 /**
+ * // todo 把事务元数据信息保存在内存中
  * An in-memory implementation of {@link TransactionMetadataStore}.
  */
 class InMemTransactionMetadataStore implements TransactionMetadataStore {

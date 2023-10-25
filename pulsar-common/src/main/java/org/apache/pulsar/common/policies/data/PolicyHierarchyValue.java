@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 import lombok.Getter;
 
 /**
+ * todo 在每一个level都可设置策略，但是策略的权重不同，topic > namespace > broker
  * Policy value holder for different hierarchy level.
  * Currently, we have three hierarchy with priority : topic > namespace > broker.
  */
@@ -60,6 +61,7 @@ public class PolicyHierarchyValue<T> {
 
     private void updateValue() {
         VALUE_UPDATER.updateAndGet(this, (preValue) -> {
+            // todo 权重比较在这里体现，先从topic，如果有设置策略，则返回。再检查namespace， broker
             if (topicValue != null) {
                 return topicValue;
             } else if (namespaceValue != null) {

@@ -73,6 +73,7 @@ class ProtocolHandlerWithClassLoader implements ProtocolHandler {
     @Override
     public void start(BrokerService service) {
         try (ClassLoaderSwitcher ignored = new ClassLoaderSwitcher(classLoader)) {
+            // TODO: 1/4/23 handler 服务 start
             handler.start(service);
         }
     }

@@ -126,6 +126,7 @@ public class Namespaces extends NamespacesBase {
         return getNamespacePolicies(namespaceName);
     }
 
+    // todo 创建一个namespace
     @PUT
     @Path("/{tenant}/{namespace}")
     @ApiOperation(value = "Creates a new namespace with the specified policies")
@@ -136,6 +137,7 @@ public class Namespaces extends NamespacesBase {
     public void createNamespace(@PathParam("tenant") String tenant, @PathParam("namespace") String namespace,
             @ApiParam(value = "Policies for the namespace") Policies policies) {
         validateNamespaceName(tenant, namespace);
+        // todo 策略
         policies = getDefaultPolicesIfNull(policies);
         internalCreateNamespace(policies);
     }
@@ -1433,6 +1435,7 @@ public class Namespaces extends NamespacesBase {
             policies = new Policies();
         }
 
+        // todo 默认bundle
         int defaultNumberOfBundles = config().getDefaultNumberOfNamespaceBundles();
 
         if (policies.bundles == null) {
@@ -1924,6 +1927,7 @@ public class Namespaces extends NamespacesBase {
         return policies.resource_group_name;
     }
 
+    // todo 给namespace设置resourcegroup
     @POST
     @Path("/{tenant}/{namespace}/resourcegroup/{resourcegroup}")
     @ApiOperation(value = "Set resourcegroup for a namespace")

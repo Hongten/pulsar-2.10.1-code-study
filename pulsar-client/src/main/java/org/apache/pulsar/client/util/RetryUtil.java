@@ -46,6 +46,7 @@ public class RetryUtil {
                                              ScheduledExecutorService scheduledExecutorService,
                                              CompletableFuture<T> callback) {
         supplier.get().whenComplete((result, e) -> {
+            // TODO: 1/18/23 如果没有报错信息，则返回，否则，就会再try
             if (e != null) {
                 long next = backoff.next();
                 boolean isMandatoryStop = backoff.isMandatoryStopMade();

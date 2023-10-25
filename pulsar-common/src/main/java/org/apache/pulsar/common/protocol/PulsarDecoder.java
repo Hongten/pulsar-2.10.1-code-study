@@ -82,6 +82,7 @@ import org.apache.pulsar.common.intercept.InterceptException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// TODO: 2/15/23 pulsar中处理各种请求适配器
 /**
  * Basic implementation of the channel handler to process inbound Pulsar data.
  */
@@ -93,6 +94,7 @@ public abstract class PulsarDecoder extends ChannelInboundHandlerAdapter {
 
     private final BaseCommand cmd = new BaseCommand();
 
+    // TODO: 2/15/23 继承了ChannelInboundHandlerAdapter，重载其方法，充channel中读取数据
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         if (msg instanceof HAProxyMessage) {
@@ -114,7 +116,7 @@ public abstract class PulsarDecoder extends ChannelInboundHandlerAdapter {
             messageReceived();
 
             switch (cmd.getType()) {
-            case PARTITIONED_METADATA:
+            case PARTITIONED_METADATA: // TODO: 2/23/23 客户端向broker端发送请求partition metadata请求
                 checkArgument(cmd.hasPartitionMetadata());
                 try {
                     interceptCommand(cmd);
@@ -130,7 +132,7 @@ public abstract class PulsarDecoder extends ChannelInboundHandlerAdapter {
                 handlePartitionResponse(cmd.getPartitionMetadataResponse());
                 break;
 
-            case LOOKUP:
+            case LOOKUP: // TODO: 2/23/23 LOOkUP请求
                 checkArgument(cmd.hasLookupTopic());
                 handleLookup(cmd.getLookupTopic());
                 break;
@@ -162,8 +164,9 @@ public abstract class PulsarDecoder extends ChannelInboundHandlerAdapter {
                 handleCloseProducer(cmd.getCloseProducer());
                 break;
 
-            case CONNECT:
+            case CONNECT: // TODO: 2/23/23 客户端发送CONNECT请求，连接broker，如果可以连接，broker会返回CONNECTED响应给客户端
                 checkArgument(cmd.hasConnect());
+                // TODO: 2/23/23 处理连接请求
                 handleConnect(cmd.getConnect());
                 break;
 
@@ -177,8 +180,9 @@ public abstract class PulsarDecoder extends ChannelInboundHandlerAdapter {
                 handleError(cmd.getError());
                 break;
 
-            case FLOW:
+            case FLOW: // TODO: 2/15/23 发送FlowPermits要求推送消息
                 checkArgument(cmd.hasFlow());
+                // TODO: 2/23/23 处理flow请求
                 handleFlow(cmd.getFlow());
                 break;
 
@@ -187,7 +191,7 @@ public abstract class PulsarDecoder extends ChannelInboundHandlerAdapter {
                 handleMessage(cmd.getMessage(), buffer);
                 break;
             }
-            case PRODUCER:
+            case PRODUCER: // TODO: 2/23/23 客户端发送PRODUCER请求
                 checkArgument(cmd.hasProducer());
                 try {
                     interceptCommand(cmd);
@@ -198,12 +202,14 @@ public abstract class PulsarDecoder extends ChannelInboundHandlerAdapter {
                 }
                 break;
 
-            case SEND: {
+            case SEND: { // TODO: 2/15/23 处理发送数据请求
                 checkArgument(cmd.hasSend());
                 try {
                     interceptCommand(cmd);
+                    // TODO: 2/15/23 构建发送内容
                     // Store a buffer marking the content + headers
                     ByteBuf headersAndPayload = buffer.markReaderIndex();
+                    // TODO: 2/15/23 处理发送数据请求
                     handleSend(cmd.getSend(), headersAndPayload);
                 } catch (InterceptException e) {
                     ctx.writeAndFlush(Commands.newSendError(cmd.getSend().getProducerId(),
@@ -221,7 +227,7 @@ public abstract class PulsarDecoder extends ChannelInboundHandlerAdapter {
                 handleSendReceipt(cmd.getSendReceipt());
                 break;
 
-            case SUBSCRIBE:
+            case SUBSCRIBE: // TODO: 2/15/23 处理订阅topic，订阅成功后，会再发送FlowPermits命名要求推送消息
                 checkArgument(cmd.hasSubscribe());
                 try {
                     interceptCommand(cmd);

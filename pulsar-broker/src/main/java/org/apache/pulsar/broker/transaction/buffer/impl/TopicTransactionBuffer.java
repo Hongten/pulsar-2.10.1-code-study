@@ -62,6 +62,10 @@ import org.jctools.queues.MessagePassingQueue;
 import org.jctools.queues.SpscArrayQueue;
 
 /**
+ * // todo 是生产者的RM（每个节点的资源管理者），当事务消息被发送到Broker上时，RM作为代理会记录一些元数据信息，然后把消息存入原始Topic。
+ * // todo RM内部包含了TopicTransactionBufferRecover和TransactionBufferSnapshotService两个服务，
+ * // todo RM的元数据会被结构化为快照定时刷盘, 这两个服务分别复制快照的恢复和快照的保存。由于生产消息是以topic为单位的，
+ * // todo 因此每个topic/partition都会有一个TopicTransactionBuffer
  * Transaction buffer based on normal persistent topic.
  */
 @Slf4j

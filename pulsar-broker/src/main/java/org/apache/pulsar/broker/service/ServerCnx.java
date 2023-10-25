@@ -158,7 +158,9 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
     private final BrokerService service;
     private final SchemaRegistryService schemaService;
     private final String listenerName;
+    // TODO: 2/23/23 所有的producers
     private final ConcurrentLongHashMap<CompletableFuture<Producer>> producers;
+    // TODO: 2/23/23 所有的consumers
     private final ConcurrentLongHashMap<CompletableFuture<Consumer>> consumers;
     private State state;
     private volatile boolean isActive = true;
@@ -189,6 +191,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
     private final int maxMessageSize;
     private boolean preciseDispatcherFlowControl;
 
+    // TODO: 2/15/23 是否开启topic的精确发送消息的速率限制， 默认为false
     private boolean preciseTopicPublishRateLimitingEnable;
     private boolean encryptionRequireOnProducer;
 
@@ -261,6 +264,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
         this.maxPendingSendRequests = conf.getMaxPendingPublishRequestsPerConnection();
         this.resumeReadsThreshold = maxPendingSendRequests / 2;
         this.preciseDispatcherFlowControl = conf.isPreciseDispatcherFlowControl();
+        // TODO: 2/15/23 是否开启topic的精确发送消息的速率限制
         this.preciseTopicPublishRateLimitingEnable = conf.isPreciseTopicPublishRateLimiterEnable();
         this.encryptionRequireOnProducer = conf.isEncryptionRequireOnProducer();
         // Assign a portion of max-pending bytes to each IO thread
@@ -388,6 +392,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
         } else {
             isProxyAuthorizedFuture = CompletableFuture.completedFuture(true);
         }
+        // TODO: 2/23/23 ACL校验
         CompletableFuture<Boolean> isAuthorizedFuture = service.getAuthorizationService().allowTopicOperationAsync(
             topicName, operation, authRole, authenticationData);
         return isProxyAuthorizedFuture.thenCombine(isAuthorizedFuture, (isProxyAuthorized, isAuthorized) -> {
@@ -405,6 +410,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
 
     private CompletableFuture<Boolean> isTopicOperationAllowed(TopicName topicName, String subscriptionName,
                                                                TopicOperation operation) {
+        // TODO: 2/23/23 会把 subscriptionName 直接加入到认证信息里面
         if (service.isAuthorizationEnabled()) {
             if (authenticationData == null) {
                 authenticationData = new AuthenticationDataCommand("", subscriptionName);
@@ -414,14 +420,21 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
             if (originalAuthData != null) {
                 originalAuthData.setSubscription(subscriptionName);
             }
+            // TODO: 2/23/23 查看是否有Consume权限
             return isTopicOperationAllowed(topicName, operation);
         } else {
             return CompletableFuture.completedFuture(true);
         }
     }
 
+    // TODO: 2/23/23 处理LOOKUP请求
     @Override
     protected void handleLookup(CommandLookupTopic lookup) {
+        // TODO: 10/18/23  参考 Commands.newLookup(), LOOKUP请求命名包含了
+        //  String topic, 
+        //  String listenerName, 
+        //  boolean authoritative, 
+        //  long requestId  下面就是对这些参数的解析
         final long requestId = lookup.getRequestId();
         final boolean authoritative = lookup.isAuthoritative();
 
@@ -451,10 +464,12 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
             }
             isTopicOperationAllowed(topicName, TopicOperation.LOOKUP).thenApply(isAuthorized -> {
                 if (isAuthorized) {
+                    // TODO: 2/23/23 认证成功
                     lookupTopicAsync(getBrokerService().pulsar(), topicName, authoritative,
                             getPrincipal(), getAuthenticationData(),
                             requestId, advertisedListenerName).handle((lookupResponse, ex) -> {
                                 if (ex == null) {
+                                    // TODO: 2/23/23 成功，返回给客户端
                                     ctx.writeAndFlush(lookupResponse);
                                 } else {
                                     // it should never happen
@@ -481,6 +496,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                 return null;
             });
         } else {
+            // TODO: 10/18/23 如果lookUP 请求过多，超过了默认的50k，就会失败 
             if (log.isDebugEnabled()) {
                 log.debug("[{}] Failed lookup due to too many lookup-requests {}", remoteAddress, topicName);
             }
@@ -489,6 +505,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
         }
     }
 
+    // TODO: 2/23/23 处理获取partition metadata请求
     @Override
     protected void handlePartitionMetadataRequest(CommandPartitionedTopicMetadata partitionMetadata) {
         final long requestId = partitionMetadata.getRequestId();
@@ -512,12 +529,16 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                 lookupSemaphore.release();
                 return;
             }
+            // TODO: 2/23/23 ACL校验
             isTopicOperationAllowed(topicName, TopicOperation.LOOKUP).thenApply(isAuthorized -> {
                 if (isAuthorized) {
+                    // TODO: 2/23/23 校验成功
                     unsafeGetPartitionedTopicMetadataAsync(getBrokerService().pulsar(), topicName)
                         .handle((metadata, ex) -> {
                                 if (ex == null) {
+                                    // TODO: 2/23/23 获取成功
                                     int partitions = metadata.partitions;
+                                    // TODO: 2/23/23 给客户端响应
                                     commandSender.sendPartitionMetadataResponse(partitions, requestId);
                                 } else {
                                     if (ex instanceof PulsarClientException) {
@@ -765,6 +786,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
 
     private static final byte[] emptyArray = new byte[0];
 
+    // TODO: 2/23/23 处理连接请求
     @Override
     protected void handleConnect(CommandConnect connect) {
         checkArgument(state == State.Start);
@@ -778,7 +800,9 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                 connect.hasOriginalPrincipal() ? connect.getOriginalPrincipal() : null);
         }
 
+        // TODO: 2/23/23 客户端版本
         String clientVersion = connect.getClientVersion();
+        // TODO: 2/23/23 客户端协议版本
         int clientProtocolVersion = connect.getProtocolVersion();
         features = new FeatureFlags();
         if (connect.hasFeatureFlags()) {
@@ -804,6 +828,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                 authMethod = "none";
             }
 
+            // TODO: 2/23/23 authenticationProviders=org.apache.pulsar.broker.authentication.AuthenticationProviderBasic
             authenticationProvider = getBrokerService()
                 .getAuthenticationService()
                 .getAuthenticationProvider(authMethod);
@@ -825,6 +850,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                 sslSession = ((SslHandler) sslHandler).engine().getSession();
             }
 
+            // TODO: 2/23/23 认证，认证成功后，roleName=UserId
             authState = authenticationProvider.newAuthState(clientData, remoteAddress, sslSession);
 
             if (log.isDebugEnabled()) {
@@ -839,6 +865,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
 
             state = doAuthentication(clientData, clientProtocolVersion, clientVersion);
 
+            // TODO: 2/23/23 authenticateOriginalAuthData=false
             // This will fail the check if:
             //  1. client is coming through a proxy
             //  2. we require to validate the original credentials
@@ -917,6 +944,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
         }
     }
 
+    // TODO: 2/23/23 处理订阅请求
     @Override
     protected void handleSubscribe(final CommandSubscribe subscribe) {
         checkArgument(state == State.Connected);
@@ -963,6 +991,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
               ? new KeySharedMeta().copyFrom(subscribe.getKeySharedMeta())
               : emptyKeySharedMeta;
 
+        // TODO: 2/23/23 查看是否有消费权限
         CompletableFuture<Boolean> isAuthorizedFuture = isTopicOperationAllowed(
                 topicName,
                 subscriptionName,
@@ -977,6 +1006,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                 consumers.putIfAbsent(consumerId, consumerFuture);
         isAuthorizedFuture.thenApply(isAuthorized -> {
             if (isAuthorized) {
+                // TODO: 2/23/23 认证成功
                 if (log.isDebugEnabled()) {
                     log.debug("[{}] Client is authorized to subscribe with role {}",
                             remoteAddress, getPrincipal());
@@ -984,6 +1014,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
 
                 log.info("[{}] Subscribing on topic {} / {}", remoteAddress, topicName, subscriptionName);
                 try {
+                    // TODO: 2/23/23 maxConsumerMetadataSize = 1024 = 1k
                     Metadata.validateMetadata(metadata,
                             service.getPulsar().getConfiguration().getMaxConsumerMetadataSize());
                 } catch (IllegalArgumentException iae) {
@@ -993,6 +1024,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                     return null;
                 }
 
+                // TODO: 2/23/23 是否为已经存在的consumer
                 if (existingConsumerFuture != null) {
                     if (!existingConsumerFuture.isDone()){
                         // There was an early request to create a consumer with same consumerId. This can happen
@@ -1016,11 +1048,13 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                         log.info("[{}] Consumer with the same id is already created:"
                                         + " consumerId={}, consumer={}",
                                 remoteAddress, consumerId, consumer);
+                        // TODO: 2/23/23 订阅已经存在，直接返回给客户端
                         commandSender.sendSuccessResponse(requestId);
                     }
                     return null;
                 }
 
+                // TODO: 2/23/23 是否自动创建topic ，默认为true
                 boolean createTopicIfDoesNotExist = forceTopicCreation
                         && service.isAllowAutoTopicCreation(topicName.toString());
 
@@ -1028,6 +1062,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                 if (subscribe.hasConsumerEpoch()) {
                     consumerEpoch = subscribe.getConsumerEpoch();
                 } else {
+                    // TODO: 2/23/23  DEFAULT_CONSUMER_EPOCH=-1
                     consumerEpoch = DEFAULT_CONSUMER_EPOCH;
                 }
                 Optional<Map<String, String>> subscriptionProperties = SubscriptionOption.getPropertiesMap(
@@ -1040,6 +1075,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                                                 "Topic " + topicName + " does not exist"));
                             }
 
+                            // TODO: 2/23/23 获取到了topic
                             Topic topic = optTopic.get();
 
                             boolean rejectSubscriptionIfDoesNotExist = isDurable
@@ -1054,6 +1090,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                                                         "Subscription does not exist"));
                             }
 
+                            // TODO: 2/23/23 构建 SubscriptionOption 对象
                             SubscriptionOption option = SubscriptionOption.builder().cnx(ServerCnx.this)
                                     .subscriptionName(subscriptionName)
                                     .consumerId(consumerId).subType(subType).priorityLevel(priorityLevel)
@@ -1069,6 +1106,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                                 return topic.addSchemaIfIdleOrCheckCompatible(schema)
                                         .thenCompose(v -> topic.subscribe(option));
                             } else {
+                                // TODO: 2/23/23 订阅topic
                                 return topic.subscribe(option);
                             }
                         })
@@ -1076,6 +1114,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                             if (consumerFuture.complete(consumer)) {
                                 log.info("[{}] Created subscription on topic {} / {}",
                                         remoteAddress, topicName, subscriptionName);
+                                // TODO: 2/23/23 订阅成功，返回给consumer "SUCCESS"
                                 commandSender.sendSuccessResponse(requestId);
                                 if (getBrokerService().getInterceptor() != null){
                                     getBrokerService().getInterceptor().consumerCreated(this, consumer, metadata);
@@ -1158,6 +1197,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
             )).build();
     }
 
+    // TODO: 2/23/23 处理生产客户端的PRODUCER请求
     @Override
     protected void handleProducer(final CommandProducer cmdProducer) {
         checkArgument(state == State.Connected);
@@ -1193,6 +1233,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
             return;
         }
 
+        // TODO: 2/23/23 ACL检查 是否有生产权限
         CompletableFuture<Boolean> isAuthorizedFuture = isTopicOperationAllowed(
                 topicName, TopicOperation.PRODUCE
         );
@@ -1205,6 +1246,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
 
         isAuthorizedFuture.thenApply(isAuthorized -> {
             if (!isAuthorized) {
+                // TODO: 2/23/23 没有生产权限，返回给客户端
                 String msg = "Client is not authorized to Produce";
                 log.warn("[{}] {} with role {}", remoteAddress, msg, getPrincipal());
                 ctx.writeAndFlush(Commands.newError(requestId, ServerError.AuthorizationError, msg));
@@ -1217,6 +1259,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
             CompletableFuture<Producer> producerFuture = new CompletableFuture<>();
             CompletableFuture<Producer> existingProducerFuture = producers.putIfAbsent(producerId, producerFuture);
 
+            // TODO: 2/23/23 判断producer是否已经存在
             if (existingProducerFuture != null) {
                 if (existingProducerFuture.isDone() && !existingProducerFuture.isCompletedExceptionally()) {
                     Producer producer = existingProducerFuture.getNow(null);
@@ -1247,6 +1290,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
 
             log.info("[{}][{}] Creating producer. producerId={}", remoteAddress, topicName, producerId);
 
+            // TODO: 2/23/23 创建topic，如果存在，则返回topic
             service.getOrCreateTopic(topicName.toString()).thenCompose((Topic topic) -> {
                 // Before creating producer, check if backlog quota exceeded
                 // on topic for size based limit and time based limit
@@ -1325,6 +1369,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                                     return;
                                 }
 
+                                // TODO: 2/23/23 producer和topic绑定
                                 buildProducerAndAddTopic(topic, producerId, producerName, requestId, isEncrypted,
                                     metadata, schemaVersion, epoch, userProvidedProducerName, topicName,
                                     producerAccessMode, topicEpoch, supportsPartialProducer, producerFuture);
@@ -1345,6 +1390,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                 });
                 return backlogQuotaCheckFuture;
             }).exceptionally(exception -> {
+                // TODO: 2/23/23 如果超过了backlog quota则抛出异常
                 Throwable cause = exception.getCause();
                 if (cause instanceof BrokerServiceException.TopicBacklogQuotaExceededException) {
                     BrokerServiceException.TopicBacklogQuotaExceededException tbqe =
@@ -1402,6 +1448,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
                              Optional<Long> topicEpoch, boolean supportsPartialProducer,
                              CompletableFuture<Producer> producerFuture){
         CompletableFuture<Void> producerQueuedFuture = new CompletableFuture<>();
+        // TODO: 2/23/23 构建Broker端的生产者
         Producer producer = new Producer(topic, ServerCnx.this, producerId, producerName,
                 getPrincipal(), isEncrypted, metadata, schemaVersion, epoch,
                 userProvidedProducerName, producerAccessMode, topicEpoch, supportsPartialProducer);
@@ -1410,6 +1457,8 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
             if (isActive()) {
                 if (producerFuture.complete(producer)) {
                     log.info("[{}] Created new producer: {}", remoteAddress, producer);
+                    // TODO: 2/23/23 如果producer被加入到topic后，broker端返回 PRODUCER_SUCCESS 状态给生产者
+                    //  接下来 生产者就可以发送SEND请求，向topic里面发送消息了
                     commandSender.sendProducerSuccessResponse(requestId, producerName,
                             producer.getLastSequenceId(), producer.getSchemaVersion(),
                             newTopicEpoch, true /* producer is ready now */);
@@ -1483,11 +1532,13 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
             return;
         }
 
+        // TODO: 2/15/23 获取到要发送消息的producer
         Producer producer = producerFuture.getNow(null);
         if (log.isDebugEnabled()) {
             printSendCommandDebug(send, headersAndPayload);
         }
 
+        // TODO: 2/15/23 判断NonPersistent topic 逻辑
         if (producer.isNonPersistentTopic()) {
             // avoid processing non-persist message if reached max concurrent-message limit
             if (nonPersistentPendingMessages > maxNonPersistentPendingMessages) {
@@ -1504,6 +1555,8 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
             }
         }
 
+        // TODO: 2/15/23 开放发送消息前准备操作，判断topic是否超过设置quota限流等。
+        //  这里当该消息超过了quota，会调用 producer.getTopic().disableCnxAutoRead(); 那么后面的消息才会被拦截
         startSendOperation(producer, headersAndPayload.readableBytes(), send.getNumMessages());
 
         if (send.hasTxnidMostBits() && send.hasTxnidLeastBits()) {
@@ -1514,11 +1567,13 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
             return;
         }
 
+        // TODO: 2/15/23 发送消息，即便当前消息超过了quota，也是会被发送到topic里面的
         // Persist the message
         if (send.hasHighestSequenceId() && send.getSequenceId() <= send.getHighestSequenceId()) {
             producer.publishMessage(send.getProducerId(), send.getSequenceId(), send.getHighestSequenceId(),
                     headersAndPayload, send.getNumMessages(), send.isIsChunk(), send.isMarker());
         } else {
+            // TODO: 2/15/23 生产者往topic里面发送消息
             producer.publishMessage(send.getProducerId(), send.getSequenceId(), headersAndPayload,
                     send.getNumMessages(), send.isIsChunk(), send.isMarker());
         }
@@ -2589,22 +2644,34 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
             .help("Counter of connections throttled because of per-connection limit")
             .register();
 
+    // TODO: 2/15/23 开始发送操作
     public void startSendOperation(Producer producer, int msgSize, int numMessages) {
+        // TODO: 2/15/23 是否超过发送速率标识
         boolean isPublishRateExceeded = false;
+        // TODO: 2/15/23 是否开启topic的精确发送消息的速率限制，默认为false。
+        //  但是这里如果设置为preciseTopicPublishRateLimitingEnable=true，即便我们设置了RG，好像也不起作用，
         if (preciseTopicPublishRateLimitingEnable) {
+            // TODO: 2/23/23 topic级别quota publish限制
             boolean isPreciseTopicPublishRateExceeded =
                     producer.getTopic().isTopicPublishRateExceeded(numMessages, msgSize);
             if (isPreciseTopicPublishRateExceeded) {
                 producer.getTopic().disableCnxAutoRead();
                 return;
             }
+            // TODO: 2/23/23 broker quota检查
             isPublishRateExceeded = producer.getTopic().isBrokerPublishRateExceeded();
         } else {
+            // TODO: 2/15/23 该topic是否开启了RG的速率限制，只要该topic上面配置了RG，就说明开启了
             if (producer.getTopic().isResourceGroupRateLimitingEnabled()) {
+                // TODO: 2/15/23 判断该producer所对应的topic是否超过了RG发送的速率限制。
+                //  判断条件：RG限速开启 && 都没有超quota
                 final boolean resourceGroupPublishRateExceeded =
                   producer.getTopic().isResourceGroupPublishRateExceeded(numMessages, msgSize);
+                // TODO: 2/15/23 超过了quota，如果至少一个超quota了，则说明超quota了
                 if (resourceGroupPublishRateExceeded) {
+                    // TODO: 2/15/23 disable 自动read
                     producer.getTopic().disableCnxAutoRead();
+                    // TODO: 2/15/23 然后返回，也意味着该producer不能发送消息
                     return;
                 }
             }
@@ -2690,6 +2757,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
 
     @Override
     public void disableCnxAutoRead() {
+        // TODO: 2/23/23 如果autoRead=false
         if (ctx != null && ctx.channel().config().isAutoRead()) {
             ctx.channel().config().setAutoRead(false);
             recordRateLimitMetrics(producers);
@@ -2747,6 +2815,7 @@ public class ServerCnx extends PulsarHandler implements TransportCnx {
         }
     }
 
+    // TODO: 2/23/23 校验topic name
     private TopicName validateTopicName(String topic, long requestId, Object requestCommand) {
         try {
             return TopicName.get(topic);

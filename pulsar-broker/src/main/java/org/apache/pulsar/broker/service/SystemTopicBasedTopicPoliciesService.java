@@ -93,6 +93,7 @@ public class SystemTopicBasedTopicPoliciesService implements TopicPoliciesServic
         return sendTopicPolicyEvent(topicName, ActionType.DELETE, null);
     }
 
+    // TODO: 1/18/23 更新topic策略
     @Override
     public CompletableFuture<Void> updateTopicPoliciesAsync(TopicName topicName, TopicPolicies policies) {
         return sendTopicPolicyEvent(topicName, ActionType.UPDATE, policies);

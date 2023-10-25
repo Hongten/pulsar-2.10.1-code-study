@@ -47,6 +47,7 @@ public interface ProtocolHandler extends AutoCloseable {
      */
     boolean accept(String protocol);
 
+    // TODO: 2/15/23 参考KOP里面 - KafkaProtocolHandler#initialize()方法
     /**
      * Initialize the protocol handler when the protocol is constructed from reflection.
      *

@@ -29,6 +29,7 @@ import org.apache.pulsar.common.naming.TopicName;
 public class EventsTopicNames {
 
     /**
+     * todo 内部topic，记录topic的事件变化，e.g topic TTL策略变化等
      * Local topic name for the namespace events.
      */
     public static final String NAMESPACE_EVENTS_LOCAL_NAME = "__change_events";

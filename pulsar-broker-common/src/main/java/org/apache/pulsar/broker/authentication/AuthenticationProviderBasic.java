@@ -36,6 +36,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.pulsar.broker.ServiceConfiguration;
 import org.apache.pulsar.broker.authentication.metrics.AuthenticationMetrics;
 
+// TODO: 2/23/23 authenticationProviders=org.apache.pulsar.broker.authentication.AuthenticationProviderBasic 使用的认证为这个provider
 public class AuthenticationProviderBasic implements AuthenticationProvider {
     private static final String HTTP_HEADER_NAME = "Authorization";
     private static final String CONF_SYSTEM_PROPERTY_KEY = "pulsar.auth.basic.conf";
@@ -71,8 +72,10 @@ public class AuthenticationProviderBasic implements AuthenticationProvider {
         return "basic";
     }
 
+    // TODO: 2/23/23 如果要整合RAM认证，就需要在这里进行处理
     @Override
     public String authenticate(AuthenticationDataSource authData) throws AuthenticationException {
+        // TODO: 2/23/23 获取到客户端传递过来的userId和Password
         AuthParams authParams = new AuthParams(authData);
         String userId = authParams.getUserId();
         String password = authParams.getPassword();
@@ -102,6 +105,7 @@ public class AuthenticationProviderBasic implements AuthenticationProvider {
             throw exception;
         }
         AuthenticationMetrics.authenticateSuccess(getClass().getSimpleName(), getAuthMethodName());
+        // TODO: 2/23/23 如果认证成功，则返回userId，那么这个userId就会作为role name
         return userId;
     }
 

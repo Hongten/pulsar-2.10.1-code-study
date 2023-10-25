@@ -55,6 +55,7 @@ public class CoordinationServiceImpl implements CoordinationService {
 
     public CoordinationServiceImpl(MetadataStoreExtended store) {
         this.store = store;
+        // TODO: 12/30/22 metadata 存储协调器服务，单线程
         this.executor = Executors.newSingleThreadScheduledExecutor(
                 new DefaultThreadFactory("metadata-store-coordination-service"));
     }

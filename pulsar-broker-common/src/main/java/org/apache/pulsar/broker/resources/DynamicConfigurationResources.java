@@ -28,6 +28,7 @@ import org.apache.pulsar.metadata.api.MetadataStoreException;
 
 public class DynamicConfigurationResources extends BaseResources<Map<String, String>> {
 
+    // TODO: 1/4/23 动态配置zk根路径
     private static final String BROKER_SERVICE_CONFIGURATION_PATH = "/admin/configuration";
 
     public DynamicConfigurationResources(MetadataStore store, int operationTimeoutSec) {
@@ -46,6 +47,7 @@ public class DynamicConfigurationResources extends BaseResources<Map<String, Str
     public void setDynamicConfigurationWithCreate(
                                  Function<Optional<Map<String, String>>, Map<String, String>> createFunction)
             throws MetadataStoreException {
+        // TODO: 1/4/23 创建动态配置到zk
         super.setWithCreate(BROKER_SERVICE_CONFIGURATION_PATH, createFunction);
     }
 

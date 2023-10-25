@@ -72,15 +72,24 @@ public class ResourceGroup {
         // Topics;  // Punt this for when we support direct ref/under from topics.
     }
 
+    // TODO: 2/10/23 每一个RG都有一个数据结构，里面存放这broker的quota，流量等信息，并且都有一个Publish Limiter
     // Default ctor: it is not expected that anything outside of this package will need to directly
     // construct a ResourceGroup (i.e., without going through ResourceGroupService).
     protected ResourceGroup(ResourceGroupService rgs, String name,
                             org.apache.pulsar.common.policies.data.ResourceGroup rgConfig) {
         this.rgs = rgs;
+        // TODO: 2/10/23 resourcegroup 名称
         this.resourceGroupName = name;
+        // TODO: 2/10/23 RG数据结构，里面存放这broker的quota，流量等信息
         this.setResourceGroupMonitoringClassFields();
+        // TODO: 2/10/23 设置我们设置的quota值，configValuesPerPeriod
         this.setResourceGroupConfigParameters(rgConfig);
+        // TODO: 2/10/23 设置默认的resource usage transport handler
         this.setDefaultResourceUsageTransportHandlers();
+        // todo publish limiter , 为什么没有dispatch limiter呢？
+        // TODO: 2/10/23 每一个ResourceGroup都有自己的Publish limiter ，
+        //  每一个Limiter都用到了pulsar的线程池，那么如果RG的数量过大，这里有性能问题，pulsar本身的的这个线程池大小为20，
+        //  是否可以单独创建一个线程池来提供服务呢？
         this.resourceGroupPublishLimiter = new ResourceGroupPublishLimiter(rgConfig, rgs.getPulsar().getExecutor());
         log.info("attaching publish rate limiter {} to {} get {}", this.resourceGroupPublishLimiter.toString(), name,
           this.getResourceGroupPublishLimiter());
@@ -96,6 +105,7 @@ public class ResourceGroup {
         this.resourceGroupName = rgName;
         this.setResourceGroupMonitoringClassFields();
         this.setResourceGroupConfigParameters(rgConfig);
+        // todo publish limiter , 为什么没有dispatch limiter呢？
         this.resourceGroupPublishLimiter = new ResourceGroupPublishLimiter(rgConfig, rgs.getPulsar().getExecutor());
         this.ruPublisher = rgPublisher;
         this.ruConsumer = rgConsumer;
@@ -182,6 +192,7 @@ public class ResourceGroup {
                 if (log.isDebugEnabled()) {
                     log.debug("registerUsage for RG={}: registering with transport-mgr", this.resourceGroupName);
                 }
+                // todo 只要有一个resourcegroup 被namespace引用，则会注册一个publisher,和一个consumer
                 transportManager.registerResourceUsagePublisher(this.ruPublisher);
                 transportManager.registerResourceUsageConsumer(this.ruConsumer);
             }
@@ -213,9 +224,12 @@ public class ResourceGroup {
     // Transport manager mandated op.
     public void rgFillResourceUsage(ResourceUsage resourceUsage) {
         NetworkUsage p;
+        // TODO: 2/14/23 owner= RG name
         resourceUsage.setOwner(this.getID());
 
+        // TODO: 2/14/23 获取publish的网络情况
         p = resourceUsage.setPublish();
+        // TODO: 2/14/23 这里好像没有使用到返回值 true or false
         this.setUsageInMonitoredEntity(ResourceGroupMonitoringClass.Publish, p);
 
         p = resourceUsage.setDispatch();
@@ -227,10 +241,12 @@ public class ResourceGroup {
     // Transport manager mandated op.
     public void rgResourceUsageListener(String broker, ResourceUsage resourceUsage) {
         NetworkUsage p;
-
+        // TODO: 2/14/23 获取到broker的 publish 的网络使用情况 
         p = resourceUsage.getPublish();
+        // TODO: 2/14/23 更新该broker的 publish 网络使用情况 
         this.getUsageFromMonitoredEntity(ResourceGroupMonitoringClass.Publish, p, broker);
 
+        // TODO: 2/14/23 获取到broker的 dispatch 的网络使用情况 
         p = resourceUsage.getDispatch();
         this.getUsageFromMonitoredEntity(ResourceGroupMonitoringClass.Dispatch, p, broker);
 
@@ -243,6 +259,7 @@ public class ResourceGroup {
         final PerMonitoringClassFields monEntity = this.monitoringClassFields[monClass.ordinal()];
         monEntity.localUsageStatsLock.lock();
         try {
+            // TODO: 2/14/23 这是我们配置的该RG上面的quota值
             retval.bytes = monEntity.configValuesPerPeriod.bytes;
             retval.messages = monEntity.configValuesPerPeriod.messages;
         } finally {
@@ -252,12 +269,15 @@ public class ResourceGroup {
         return retval;
     }
 
+    // TODO: 2/14/23 这里只是做增量操作，为啥呢？
     protected void incrementLocalUsageStats(ResourceGroupMonitoringClass monClass, BytesAndMessagesCount stats)
                                                                                         throws PulsarAdminException {
         this.checkMonitoringClass(monClass);
+        // TODO: 2/14/23 获取到该RG的publish，or dispatch的数据结构 
         final PerMonitoringClassFields monEntity = this.monitoringClassFields[monClass.ordinal()];
         monEntity.localUsageStatsLock.lock();
         try {
+            // TODO: 2/14/23 把该broker上面的RG的网络使用情况增加 
             monEntity.usedLocallySinceLastReport.bytes += stats.bytes;
             monEntity.usedLocallySinceLastReport.messages += stats.messages;
         } finally {
@@ -314,6 +334,7 @@ public class ResourceGroup {
 
         monEntity.usageFromOtherBrokersLock.lock();
         try {
+            // TODO: 2/14/23 通过消费内部topic而获得的该RG在所有broker上面的网络使用信息，这里只是获取到该broker的上面RG的网络使用情况
             pbus = monEntity.usageFromOtherBrokers.get(myBrokerId);
         } finally {
             monEntity.usageFromOtherBrokersLock.unlock();
@@ -335,23 +356,29 @@ public class ResourceGroup {
         this.checkMonitoringClass(monClass);
 
         final PerMonitoringClassFields monEntity = this.monitoringClassFields[monClass.ordinal()];
+        // todo 获取锁
         monEntity.usageFromOtherBrokersLock.lock();
         BytesAndMessagesCount retStats = new BytesAndMessagesCount();
         try {
+            // TODO: 2/14/23 通过消费内部topic而获得的该RG在所有broker上面的网络使用信息，所以，这里是该RG在集群里面的网络总使用量
             monEntity.usageFromOtherBrokers.forEach((broker, brokerUsage) -> {
                 retStats.bytes += brokerUsage.usedValues.bytes;
                 retStats.messages += brokerUsage.usedValues.messages;
             });
         } finally {
+            // todo 释放锁
             monEntity.usageFromOtherBrokersLock.unlock();
         }
 
         return retStats;
     }
 
+    // TODO: 2/14/23 这里没有更新dispatch的限流信息
     protected BytesAndMessagesCount updateLocalQuota(ResourceGroupMonitoringClass monClass,
                                                      BytesAndMessagesCount newQuota) throws PulsarAdminException {
         // Only the Publish side is functional now; add the Dispatch side code when the consume side is ready.
+        // TODO: 2/10/23 这里指的是 Dispatch 没有ready吗？因为即便是Dispatch，这里也不会进行处理，这里也说明了为什么消费的quota不生效的原因，
+        //  即PerMonitoringClassFields的Dispatch一直不更新导致的
         if (!ResourceGroupMonitoringClass.Publish.equals(monClass)) {
             if (log.isDebugEnabled()) {
                 log.debug("Doing nothing for monClass={}; only Publish is functional", monClass);
@@ -360,13 +387,18 @@ public class ResourceGroup {
         }
 
         this.checkMonitoringClass(monClass);
+        // todo 当前的quota值
         BytesAndMessagesCount oldBMCount;
 
         final PerMonitoringClassFields monEntity = this.monitoringClassFields[monClass.ordinal()];
         monEntity.localUsageStatsLock.lock();
         oldBMCount = monEntity.quotaForNextPeriod;
         try {
+            // todo 更新为最新的quota值
+            // TODO: 2/10/23 第一是更新resourcegroup里面quotaForNextPeriod 的值，
+            //  其次是更新resourceGroupPublishLimiter，这个是真正做流量限制的
             monEntity.quotaForNextPeriod = newQuota;
+            // TODO: 2/14/23 之前所有的动作都是为这里所准备的
             this.resourceGroupPublishLimiter.update(newQuota);
         } finally {
             monEntity.localUsageStatsLock.unlock();
@@ -376,6 +408,7 @@ public class ResourceGroup {
                     this.resourceGroupName, monClass, newQuota.bytes, newQuota.messages);
         }
 
+        // todo 返回当前的quota值
         return oldBMCount;
     }
 
@@ -425,6 +458,11 @@ public class ResourceGroup {
         }
     }
 
+    // TODO: 2/14/23 主要功能是：
+    //  1。 判断是否需要上报该RG的网络信息
+    //  2。 重置usedLocallySinceLastReport=0
+    //  3。 统计totalUsedLocally
+    //  4.  重置lastReportedValues如果需要上报
     // Fill usage about a particular monitoring class in the transport-manager callback
     // for reporting local stats to other brokers.
     // Returns true if something was filled.
@@ -436,10 +474,12 @@ public class ResourceGroup {
         PerMonitoringClassFields monEntity;
 
         final int idx = monClass.ordinal();
+        // TODO: 2/14/23 获取到给RG内存中的 PerMonitoringClassFields
         monEntity = this.monitoringClassFields[idx];
 
         monEntity.localUsageStatsLock.lock();
         try {
+            // todo 判断是否需要上报
             sendReport = this.rgs.quotaCalculator.needToReportLocalUsage(
                     monEntity.usedLocallySinceLastReport.bytes,
                     monEntity.lastReportedValues.bytes,
@@ -447,22 +487,29 @@ public class ResourceGroup {
                     monEntity.lastReportedValues.messages,
                     monEntity.lastResourceUsageFillTimeMSecsSinceEpoch);
 
+            // TODO: 2/14/23 已经被使用的网络情况
             bytesUsed = monEntity.usedLocallySinceLastReport.bytes;
             messagesUsed = monEntity.usedLocallySinceLastReport.messages;
+            // TODO: 2/14/23 把该broker上面的该RG网上使用的情况重置为0，因为后面一直是做增量操作，即聚合的时候，会把数据量累积起来作为该RG的网络使用情况。
+            //  然后当把本地数据上报后，需要重置该值
             monEntity.usedLocallySinceLastReport.bytes = monEntity.usedLocallySinceLastReport.messages = 0;
 
+            // TODO: 2/14/23 统计到总用量里面
             monEntity.totalUsedLocally.bytes += bytesUsed;
             monEntity.totalUsedLocally.messages += messagesUsed;
 
             monEntity.lastResourceUsageFillTimeMSecsSinceEpoch = System.currentTimeMillis();
 
             if (sendReport) {
+                // TODO: 2/14/23 如果是为上报
                 p.setBytesPerPeriod(bytesUsed);
                 p.setMessagesPerPeriod(messagesUsed);
+                // TODO: 2/14/23 更新上报信息，所以说，上报值不一定为已使用值
                 monEntity.lastReportedValues.bytes = bytesUsed;
                 monEntity.lastReportedValues.messages = messagesUsed;
-                monEntity.numSuppressedUsageReports = 0;
+                monEntity.numSuppressedUsageReports = 0; // todo 如果需要上报，则numSuppressedUsageReports=0
             } else {
+                // todo 否则 numSuppressedUsageReports会自增1
                 numSuppressions = monEntity.numSuppressedUsageReports++;
             }
 
@@ -472,6 +519,7 @@ public class ResourceGroup {
 
         final String rgName = this.ruPublisher != null ? this.ruPublisher.getID() : this.resourceGroupName;
         double sentCount = sendReport ? 1 : 0;
+        // todo 监控里面更新信息，上报了多少次统计采集
         rgLocalUsageReportCount.labels(rgName, monClass.name()).inc(sentCount);
         if (sendReport) {
             if (log.isDebugEnabled()) {
@@ -492,29 +540,40 @@ public class ResourceGroup {
     // Update fields in a particular monitoring class from a given broker in the
     // transport-manager callback for listening to usage reports.
     private void getUsageFromMonitoredEntity(ResourceGroupMonitoringClass monClass, NetworkUsage p, String broker) {
+        // TODO: 2/14/23 更新broker的 publish 的网络使用情况 
         final int idx = monClass.ordinal();
         PerMonitoringClassFields monEntity;
+        // TODO: 2/14/23 网络使用状态 
         PerBrokerUsageStats usageStats, oldUsageStats;
         long oldByteCount, oldMessageCount;
         long newByteCount, newMessageCount;
 
+        // TODO: 2/14/23 这个是内存中的一个数组，里面只有publish， dispatch两个。
+        //  当这里是publish的时候，对应的是 PerMonitoringClassFields的数据结构
         monEntity = this.monitoringClassFields[idx];
+        // TODO: 2/14/23 根据broker，获取到broker在内存中的网络使用情况
         usageStats = monEntity.usageFromOtherBrokers.get(broker);
+        // TODO: 2/14/23 第一次的时候，为null
         if (usageStats == null) {
+            // TODO: 2/14/23 创建一个 PerBrokerUsageStats实例
             usageStats = new PerBrokerUsageStats();
+            // TODO: 2/14/23 设置  usedValues
             usageStats.usedValues = new BytesAndMessagesCount();
         }
         monEntity.usageFromOtherBrokersLock.lock();
         try {
+            // TODO: 2/14/23 把bytes , messages 更新到对应的broker上面
             newByteCount = p.getBytesPerPeriod();
             usageStats.usedValues.bytes = newByteCount;
             newMessageCount = p.getMessagesPerPeriod();
             usageStats.usedValues.messages = newMessageCount;
             usageStats.lastResourceUsageReadTimeMSecsSinceEpoch = System.currentTimeMillis();
+            // TODO: 2/14/23  把broker新数据进行更新
             oldUsageStats = monEntity.usageFromOtherBrokers.put(broker, usageStats);
         } finally {
             monEntity.usageFromOtherBrokersLock.unlock();
         }
+        // TODO: 2/14/23 metric信息采集
         rgRemoteUsageReportsBytes.labels(this.ruConsumer.getID(), monClass.name(), broker).inc(newByteCount);
         rgRemoteUsageReportsMessages.labels(this.ruConsumer.getID(), monClass.name(), broker).inc(newMessageCount);
 
@@ -533,15 +592,21 @@ public class ResourceGroup {
         }
     }
 
+    // TODO: 2/10/23 每一个RG都在内存中维护一个下面的数据结构，里面存放这broker的quota，流量等信息
+    //  这些信息会在calculateQuotaForAllResourceGroups()方法里面被使用到
     private void setResourceGroupMonitoringClassFields() {
+        // todo 每一个RG都有两个指标， publish， dispatch
         PerMonitoringClassFields monClassFields;
         for (int idx = 0; idx < ResourceGroupMonitoringClass.values().length; idx++) {
             this.monitoringClassFields[idx] = new PerMonitoringClassFields();
 
+            // TODO: 2/14/23 初始化 monitoringClassFields，
             monClassFields = this.monitoringClassFields[idx];
+            // TODO: 2/10/23 我们设置的quota值
             monClassFields.configValuesPerPeriod = new BytesAndMessagesCount();
             monClassFields.usedLocallySinceLastReport = new BytesAndMessagesCount();
             monClassFields.lastReportedValues = new BytesAndMessagesCount();
+            // TODO: 2/10/23 这些信息会在calculateQuotaForAllResourceGroups()方法里面更新这个值
             monClassFields.quotaForNextPeriod = new BytesAndMessagesCount();
             monClassFields.totalUsedLocally = new BytesAndMessagesCount();
             monClassFields.usageFromOtherBrokers = new HashMap<>();
@@ -555,6 +620,7 @@ public class ResourceGroup {
     private void setResourceGroupConfigParameters(org.apache.pulsar.common.policies.data.ResourceGroup rgConfig) {
         int idx;
 
+        // todo 设置我们配置的quota值，默认值为-1，如果我们没有配置
         idx = ResourceGroupMonitoringClass.Publish.ordinal();
         this.monitoringClassFields[idx].configValuesPerPeriod.bytes = rgConfig.getPublishRateInBytes() == null
                 ? -1 : rgConfig.getPublishRateInBytes();
@@ -569,19 +635,24 @@ public class ResourceGroup {
     }
 
     private void setDefaultResourceUsageTransportHandlers() {
+        // todo 会把自己的资源汇报到内部topic里面，然后再消费该topic，获取其他broker汇报的信息
         this.ruPublisher = new ResourceUsagePublisher() {
+            // TODO: 2/14/23 ID 即为RG name
             @Override
             public String getID() {
                 return ResourceGroup.this.getID();
             }
 
+            // TODO: 2/14/23 收集该RG的网络情况信息
             @Override
             public void fillResourceUsage(ResourceUsage resourceUsage) {
+                // todo 汇报这个RG的资源情况到内部topic里面
                 ResourceGroup.this.rgFillResourceUsage(resourceUsage);
             }
         };
 
         this.ruConsumer = new ResourceUsageConsumer() {
+            // TODO: 2/14/23 这个ID为RG名词，即 ResourceUsage里面的owner
             @Override
             public String getID() {
                 return ResourceGroup.this.getID();
@@ -589,6 +660,7 @@ public class ResourceGroup {
 
             @Override
             public void acceptResourceUsage(String broker, ResourceUsage resourceUsage) {
+                // todo 消费内部topic，获取其他broker的资源情况
                 ResourceGroup.this.rgResourceUsageListener(broker, resourceUsage);
             }
         };
@@ -596,6 +668,10 @@ public class ResourceGroup {
 
     public final String resourceGroupName;
 
+    // TODO: 2/14/23 该broker内存中的数组，记录所有broker上面对该RG的publish和dispatch的网络使用情况，
+    //  里面包含两个PerMonitoringClassFields[publish=new PerMonitoringClassFields(), dispatch=new PerMonitoringClassFields()]
+    //  即 publish = this.monitoringClassFields[0]，
+    //    dispatch = this.monitoringClassFields[1]
     public PerMonitoringClassFields[] monitoringClassFields =
             new PerMonitoringClassFields[ResourceGroupMonitoringClass.values().length];
 
@@ -640,18 +716,24 @@ public class ResourceGroup {
     @Getter
     protected ResourceGroupPublishLimiter resourceGroupPublishLimiter;
 
+    // TODO: 2/14/23 这个数据结构非常重要，它记录着该RG的网络使用情况
     protected static class PerMonitoringClassFields {
         // This lock covers all the "local" counts (i.e., except for the per-broker usage stats).
         Lock localUsageStatsLock;
 
+        // TODO: 2/14/23 配置的 quota值
         BytesAndMessagesCount configValuesPerPeriod;
 
+        // TODO: 2/14/23 调整后的quota值
         // Target quotas set (after reading info from other brokers) for local usage.
         BytesAndMessagesCount quotaForNextPeriod;
 
+        // TODO: 2/14/23 已使用的网络情况，这里一直做增量操作 因为后面一直是做增量操作，即聚合的时候，会把数据量累积起来作为该RG的网络使用情况。
+        //            //  然后当把本地数据上报后，需要重置该值为0
         // Running statistics about local usage.
         BytesAndMessagesCount usedLocallySinceLastReport;
 
+        // TODO: 2/14/23 上一次上报的网络情况
         // Statistics about local usage that were reported in the last round.
         // We will suppress reports (as optimization) if usedLocallySinceLastReport is not
         // substantially different from lastReportedValues.
@@ -660,14 +742,17 @@ public class ResourceGroup {
         // Time when we last attempted to fill up in fillResourceUsage; for debugging.
         long lastResourceUsageFillTimeMSecsSinceEpoch;
 
+        // TODO: 2/14/23 计数器
         // Number of rounds of suppressed usage reports (due to not enough change) since last we reported usage.
         int numSuppressedUsageReports;
 
+        // TODO: 2/14/23 网络总使用情况
         // Accumulated stats of local usage.
         BytesAndMessagesCount totalUsedLocally;
 
         // This lock covers all the non-local usage counts, received from other brokers.
         Lock usageFromOtherBrokersLock;
+        // TODO: 2/14/23 其他broker的网络使用情况，<broker, PerBrokerUsageStats>
         public HashMap<String, PerBrokerUsageStats> usageFromOtherBrokers;
     }
 

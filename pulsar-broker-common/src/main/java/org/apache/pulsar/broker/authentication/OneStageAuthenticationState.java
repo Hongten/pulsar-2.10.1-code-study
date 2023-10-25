@@ -34,6 +34,7 @@ import org.apache.pulsar.common.api.AuthData;
 public class OneStageAuthenticationState implements AuthenticationState {
 
     private final AuthenticationDataSource authenticationDataSource;
+    // TODO: 2/23/23 用户 - role - 资源
     private final String authRole;
 
     public OneStageAuthenticationState(AuthData authData,
@@ -42,6 +43,7 @@ public class OneStageAuthenticationState implements AuthenticationState {
                                        AuthenticationProvider provider) throws AuthenticationException {
         this.authenticationDataSource = new AuthenticationDataCommand(
             new String(authData.getBytes(), UTF_8), remoteAddress, sslSession);
+        // TODO: 2/23/23 经过认证后， roleName=userId
         this.authRole = provider.authenticate(authenticationDataSource);
     }
 

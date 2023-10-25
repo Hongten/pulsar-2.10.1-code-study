@@ -176,7 +176,7 @@ public class ManagedLedgerFactoryImpl implements ManagedLedgerFactory {
                 .numThreads(config.getNumManagedLedgerSchedulerThreads())
                 .statsLogger(statsLogger)
                 .traceTaskExecution(config.isTraceTaskExecution())
-                .name("bookkeeper-ml-scheduler")
+                .name("bookkeeper-ml-scheduler") // TODO: 12/30/22 bk manage ledger 线程池
                 .build();
         cacheEvictionExecutor = Executors
                 .newSingleThreadExecutor(new DefaultThreadFactory("bookkeeper-ml-cache-eviction"));
@@ -189,8 +189,10 @@ public class ManagedLedgerFactoryImpl implements ManagedLedgerFactory {
         this.config = config;
         this.mbean = new ManagedLedgerFactoryMBeanImpl(this);
         this.entryCacheManager = new EntryCacheManager(this);
+        // TODO: 12/30/22 刷新Ledger 状态 task ，60s刷新一次
         this.statsTask = scheduledExecutor.scheduleWithFixedDelay(catchingAndLoggingThrowables(this::refreshStats),
                 0, config.getStatsPeriodSeconds(), TimeUnit.SECONDS);
+        // TODO: 12/30/22 游标刷新task ，60s刷新一次
         this.flushCursorsTask = scheduledExecutor.scheduleAtFixedRate(catchingAndLoggingThrowables(this::flushCursors),
                 config.getCursorPositionFlushSeconds(), config.getCursorPositionFlushSeconds(), TimeUnit.SECONDS);
 
@@ -226,6 +228,7 @@ public class ManagedLedgerFactoryImpl implements ManagedLedgerFactory {
     }
 
     private synchronized void flushCursors() {
+        // TODO: 12/30/22 所有的Ledger刷新游标
         ledgers.values().forEach(mlfuture -> {
             if (mlfuture.isDone() && !mlfuture.isCompletedExceptionally()) {
                 ManagedLedgerImpl ml = mlfuture.getNow(null);
@@ -241,6 +244,7 @@ public class ManagedLedgerFactoryImpl implements ManagedLedgerFactory {
         long period = now - lastStatTimestamp;
 
         mbean.refreshStats(period, TimeUnit.NANOSECONDS);
+        // TODO: 12/30/22 所有的Ledger都需要刷新状态，如果Ledger有很多，这里有性能问题
         ledgers.values().forEach(mlfuture -> {
             if (mlfuture.isDone() && !mlfuture.isCompletedExceptionally()) {
                 ManagedLedgerImpl ml = mlfuture.getNow(null);

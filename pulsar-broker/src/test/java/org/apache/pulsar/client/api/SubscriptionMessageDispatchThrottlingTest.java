@@ -318,19 +318,24 @@ public class SubscriptionMessageDispatchThrottlingTest extends MessageDispatchTh
         final String topicName = BrokerTestUtil.newUniqueName("persistent://" + namespace + "/throttlingAll");
         final String subName = "my-subscriber-name-" + subscription;
 
+        // TODO: 3/14/23 subscription 消费rate
         DispatchRate subscriptionDispatchRate = DispatchRate.builder()
                 .dispatchThrottlingRateInMsg(-1)
                 .dispatchThrottlingRateInByte(subRate)
                 .ratePeriodInSecond(1)
                 .build();
+        // TODO: 3/14/23 topic级别的消费rate
         DispatchRate topicDispatchRate = DispatchRate.builder()
                 .dispatchThrottlingRateInMsg(-1)
                 .dispatchThrottlingRateInByte(topicRate)
                 .ratePeriodInSecond(1)
                 .build();
+        // TODO: 3/14/23 需要创建一个RG消费限流
         admin.namespaces().createNamespace(namespace, Sets.newHashSet("test"));
+        // TODO: 3/14/23 需要和namespace设置一个RG
         admin.namespaces().setSubscriptionDispatchRate(namespace, subscriptionDispatchRate);
         admin.namespaces().setDispatchRate(namespace, topicDispatchRate);
+        // TODO: 3/14/23 动态设置消费限流速率
         admin.brokers().updateDynamicConfiguration("dispatchThrottlingRateInByte", "" + brokerRate);
 
         final int numProducedMessages = 30;
@@ -339,6 +344,7 @@ public class SubscriptionMessageDispatchThrottlingTest extends MessageDispatchTh
         // enable throttling for nonBacklog consumers
         conf.setDispatchThrottlingOnNonBacklogConsumerEnabled(true);
 
+        // TODO: 3/14/23 创建消费者
         Consumer<byte[]> consumer = pulsarClient.newConsumer().topic(topicName).subscriptionName(subName)
                 .receiverQueueSize(10)
                 .subscriptionType(subscription).messageListener((c1, msg) -> {
@@ -349,7 +355,9 @@ public class SubscriptionMessageDispatchThrottlingTest extends MessageDispatchTh
                     latch.countDown();
                 }).subscribe();
 
+        // TODO: 3/14/23 创建生产者
         Producer<byte[]> producer = pulsarClient.newProducer().topic(topicName).create();
+        // TODO: 3/14/23 创建topic
         PersistentTopic topic = (PersistentTopic) pulsar.getBrokerService().getOrCreateTopic(topicName).get();
 
         DispatchRateLimiter subRateLimiter = null;
@@ -361,6 +369,8 @@ public class SubscriptionMessageDispatchThrottlingTest extends MessageDispatchTh
         } else {
             Assert.fail("Should only have PersistentDispatcher in this test");
         }
+
+        // TODO: 3/14/23 可以在这里加入RG 限流
         final DispatchRateLimiter subDispatchRateLimiter = subRateLimiter;
         Awaitility.await().atMost(Duration.ofMillis(500)).untilAsserted(() -> {
             DispatchRateLimiter brokerDispatchRateLimiter = pulsar.getBrokerService().getBrokerDispatchRateLimiter();
@@ -373,6 +383,8 @@ public class SubscriptionMessageDispatchThrottlingTest extends MessageDispatchTh
                     && subDispatchRateLimiter.getDispatchRateOnByte() > 0);
         });
 
+        log.info("11111111111");
+
         Assert.assertEquals(admin.namespaces().getSubscriptionDispatchRate(namespace)
                 .getDispatchThrottlingRateInByte(), subRate);
         Assert.assertEquals(admin.namespaces().getDispatchRate(namespace)
@@ -383,8 +395,11 @@ public class SubscriptionMessageDispatchThrottlingTest extends MessageDispatchTh
         for (int i = 0; i < numProducedMessages; i++) {
             producer.send(new byte[expectRate / 10]);
         }
+        log.info("22222222222222222");
         latch.await();
+        log.info("33333333333333333333");
         Assert.assertEquals(totalReceived.get(), numProducedMessages, 10);
+        log.info("444444444444444444");
         long end = System.currentTimeMillis();
         log.info("-- end - start: {} ", end - start);
 
@@ -395,6 +410,7 @@ public class SubscriptionMessageDispatchThrottlingTest extends MessageDispatchTh
         consumer.close();
         producer.close();
         admin.topics().delete(topicName, true);
+        // TODO: 3/14/23 需要删除RG
         admin.namespaces().deleteNamespace(namespace);
     }
 

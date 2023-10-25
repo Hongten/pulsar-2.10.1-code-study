@@ -27,6 +27,7 @@ import org.apache.pulsar.transaction.coordinator.impl.TransactionMetadataStoreSt
 import org.apache.pulsar.transaction.coordinator.proto.TxnStatus;
 
 /**
+ * // todo 是被TC用来保存事务的元数据
  * A store for storing all the transaction metadata.
  */
 @Beta

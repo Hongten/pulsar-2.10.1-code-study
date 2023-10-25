@@ -53,6 +53,7 @@ import org.apache.pulsar.common.api.proto.KeySharedMode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// TODO: 2/22/23 key_shared专用消费
 public class PersistentStickyKeyDispatcherMultipleConsumers extends PersistentDispatcherMultipleConsumers {
 
     private final boolean allowOutOfOrderDelivery;
@@ -290,19 +291,26 @@ public class PersistentStickyKeyDispatcherMultipleConsumers extends PersistentDi
             }
         }
 
+        // TODO: 2/22/23 这里并没有对超过quota进行处理 ，但是会把现有的acquirePermit加入到累加值acquiredPermits上面 即 acquiredPermits += acquirePermit;
+        //  因为这些消息已经被返回给Consumer了
         // acquire message-dispatch permits for already delivered messages
         if (serviceConfig.isDispatchThrottlingOnNonBacklogConsumerEnabled() || !cursor.isActive()) {
+            // TODO: 2/22/23  dispatchThrottlingOnBatchMessageEnabled =false
             long permits = dispatchThrottlingOnBatchMessageEnabled ? totalEntries : totalMessagesSent;
+            // TODO: 2/22/23 broker限流检查
             if (topic.getBrokerDispatchRateLimiter().isPresent()) {
                 topic.getBrokerDispatchRateLimiter().get().tryDispatchPermit(permits, totalBytesSent);
             }
+            // TODO: 2/22/23 topic限流检查
             if (topic.getDispatchRateLimiter().isPresent()) {
                 topic.getDispatchRateLimiter().get().tryDispatchPermit(permits, totalBytesSent);
             }
 
+            // TODO: 2/22/23 subscription限流检查
             if (dispatchRateLimiter.isPresent()) {
                 dispatchRateLimiter.get().tryDispatchPermit(permits, totalBytesSent);
             }
+            // TODO: 2/22/23 可以加入resourceGroup限流检查
         }
 
         stuckConsumers.clear();

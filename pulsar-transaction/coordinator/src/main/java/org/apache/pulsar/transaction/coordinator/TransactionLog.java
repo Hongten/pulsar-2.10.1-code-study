@@ -23,6 +23,7 @@ import org.apache.bookkeeper.mledger.Position;
 import org.apache.pulsar.transaction.coordinator.proto.TransactionMetadataEntry;
 
 /**
+ * // todo 事务接口
  * A log interface for transaction to read and write transaction operation.
  */
 public interface TransactionLog {

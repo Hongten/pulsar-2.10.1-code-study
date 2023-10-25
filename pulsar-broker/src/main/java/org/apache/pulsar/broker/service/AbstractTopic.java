@@ -78,6 +78,7 @@ public abstract class AbstractTopic implements Topic, TopicPolicyListener<TopicP
 
     protected final String topic;
 
+    // TODO: 2/14/23 所有的producer map <topic, producer> 
     // Producers currently connected to this topic
     protected final ConcurrentHashMap<String, Producer> producers;
 
@@ -111,10 +112,12 @@ public abstract class AbstractTopic implements Topic, TopicPolicyListener<TopicP
     protected volatile PublishRateLimiter topicPublishRateLimiter;
     private final Object topicPublishRateLimiterLock = new Object();
 
+    // TODO: 2/15/23 这个是做为topic的Publish的限流器
     protected volatile ResourceGroupPublishLimiter resourceGroupPublishLimiter;
 
     protected boolean preciseTopicPublishRateLimitingEnable;
 
+    // TODO: 2/15/23 RG限流标识，如果该topic上面的RG不为空，即该topic已经设置了RG，我们就认为该topic开启了RG限流 
     @Getter
     protected boolean resourceGroupRateLimitingEnabled;
 
@@ -458,11 +461,13 @@ public abstract class AbstractTopic implements Topic, TopicPolicyListener<TopicP
 
     @Override
     public void disableCnxAutoRead() {
+        // TODO: 2/23/23 该topic上面的所有producer ，只会影响到该topic所在的broker上面producer
         producers.values().forEach(producer -> producer.getCnx().disableCnxAutoRead());
     }
 
     @Override
     public void enableCnxAutoRead() {
+        // TODO: 2/14/23 该topic上面的所有producer进行 autoRead 
         producers.values().forEach(producer -> producer.getCnx().enableCnxAutoRead());
     }
 
@@ -591,6 +596,7 @@ public abstract class AbstractTopic implements Topic, TopicPolicyListener<TopicP
                 .checkConsumerCompatibility(id, schema, getSchemaCompatibilityStrategy());
     }
 
+    // TODO: 2/23/23 把生产者加入到topic里面
     @Override
     public CompletableFuture<Optional<Long>> addProducer(Producer producer,
                                                          CompletableFuture<Void> producerQueuedFuture) {
@@ -607,6 +613,7 @@ public abstract class AbstractTopic implements Topic, TopicPolicyListener<TopicP
                             log.warn("[{}] Attempting to add producer to a terminated topic", topic);
                             throw new TopicTerminatedException("Topic was already terminated");
                         }
+                        // TODO: 2/23/23 加入producer
                         internalAddProducer(producer);
 
                         USAGE_COUNT_UPDATER.incrementAndGet(this);
@@ -834,6 +841,7 @@ public abstract class AbstractTopic implements Topic, TopicPolicyListener<TopicP
             log.debug("[{}] {} Got request to create producer ", topic, producer.getProducerName());
         }
 
+        // TODO: 2/23/23 把producer放入到 producers 里面
         Producer existProducer = producers.putIfAbsent(producer.getProducerName(), producer);
         if (existProducer != null) {
             tryOverwriteOldProducer(existProducer, producer);
@@ -942,12 +950,15 @@ public abstract class AbstractTopic implements Topic, TopicPolicyListener<TopicP
                 || getBrokerPublishRateLimiter().isPublishRateExceeded();
     }
 
+    // TODO: 2/15/23 重载 isResourceGroupPublishRateExceeded 方法
     @Override
     public boolean isResourceGroupPublishRateExceeded(int numMessages, int bytes) {
+        // TODO: 2/15/23 RG限速开启 && 都没有超quota
         return this.resourceGroupRateLimitingEnabled
             && !this.resourceGroupPublishLimiter.tryAcquire(numMessages, bytes);
     }
 
+    // TODO: 2/15/23 重载isResourceGroupRateLimitingEnabled方法
     @Override
     public boolean isResourceGroupRateLimitingEnabled() {
         return this.resourceGroupRateLimitingEnabled;
@@ -973,7 +984,9 @@ public abstract class AbstractTopic implements Topic, TopicPolicyListener<TopicP
         return brokerService.getBrokerPublishRateLimiter();
     }
 
+    // TODO: 2/14/23 在topic初始化的时候，或topic的策略发生变化的时候，需要更新RGLimiter
     public void updateResourceGroupLimiter(Optional<Policies> optPolicies) {
+        // TODO: 2/14/23 获取topic的策略信息
         Policies policies;
         try {
             policies = optPolicies.orElseGet(() ->
@@ -987,23 +1000,31 @@ public abstract class AbstractTopic implements Topic, TopicPolicyListener<TopicP
             policies = new Policies();
         }
 
+        // TODO: 2/14/23 策略信息里面包含了 resource_group_name
         // attach the resource-group level rate limiters, if set
         String rgName = policies.resource_group_name;
         if (rgName != null) {
+            // TODO: 2/14/23 获取到对应的RG对象
             final ResourceGroup resourceGroup =
               brokerService.getPulsar().getResourceGroupServiceManager().resourceGroupGet(rgName);
             if (resourceGroup != null) {
+                // TODO: 2/15/23 如果该topic上面的RG不为空，即该topic已经设置了RG，我们就认为该topic开启了RG限流
                 this.resourceGroupRateLimitingEnabled = true;
+                // TODO: 2/14/23 获取到RG的PublishLimiter
                 this.resourceGroupPublishLimiter = resourceGroup.getResourceGroupPublishLimiter();
+                // TODO: 2/14/23 注册 RateLimitFunction <topicName, fun>，
+                //  在没有超过quota的时候，会一直执行这个方法进行读取Chanel里面的数据
                 this.resourceGroupPublishLimiter.registerRateLimitFunction(this.getName(),
                   () -> this.enableCnxAutoRead());
                 log.info("Using resource group {} rate limiter for topic {}", rgName, topic);
                 return;
             }
         } else {
+            // TODO: 2/14/23 说明该topic上面没有设置RG 
             if (this.resourceGroupRateLimitingEnabled) {
                 this.resourceGroupPublishLimiter.unregisterRateLimitFunction(this.getName());
                 this.resourceGroupPublishLimiter = null;
+                // TODO: 2/15/23 如果该topic上面的RG为空，需要把该标识关闭
                 this.resourceGroupRateLimitingEnabled = false;
             }
             /* Namespace detached from resource group. Enable the producer read */
@@ -1059,16 +1080,19 @@ public abstract class AbstractTopic implements Topic, TopicPolicyListener<TopicP
         return waitingExclusiveProducers.size();
     }
 
+    // TODO: 2/24/23 判断是否超过了最大消息的size
     protected boolean isExceedMaximumMessageSize(int size, PublishContext publishContext) {
         if (publishContext.isChunked()) {
             //skip topic level max message check if it's chunk message.
             return false;
         }
+        // TODO: 2/24/23 topic设置的maxMessageSize
         int topicMaxMessageSize = topicPolicies.getTopicMaxMessageSize().get();
         if (topicMaxMessageSize <= 0) {
             //invalid setting means this check is disabled.
             return false;
         }
+        // TODO: 2/24/23 maxMessageSize=5MB
         if (topicMaxMessageSize >= brokerService.pulsar().getConfiguration().getMaxMessageSize()) {
             //broker setting does not contain message header and already handled in client and frameDecoder.
             return false;

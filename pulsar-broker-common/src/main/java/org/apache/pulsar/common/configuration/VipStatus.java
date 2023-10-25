@@ -42,6 +42,7 @@ public class VipStatus {
     @GET
     @Context
     public String checkStatus() {
+        // TODO: 1/4/23 访问 http://brokerIP:8080/status.html， 返回OK
         String statusFilePath = (String) servletContext.getAttribute(ATTRIBUTE_STATUS_FILE_PATH);
         @SuppressWarnings("unchecked")
         Supplier<Boolean> isReadyProbe = (Supplier<Boolean>) servletContext.getAttribute(ATTRIBUTE_IS_READY_PROBE);

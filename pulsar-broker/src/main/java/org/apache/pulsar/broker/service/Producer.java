@@ -182,6 +182,7 @@ public class Producer {
 
     public void publishMessage(long producerId, long sequenceId, ByteBuf headersAndPayload, long batchSize,
             boolean isChunked, boolean isMarker) {
+        // TODO: 2/15/23 检查是否可以发送
         if (checkAndStartPublish(producerId, sequenceId, headersAndPayload, batchSize)) {
             publishMessageToTopic(headersAndPayload, sequenceId, batchSize, isChunked, isMarker);
         }
@@ -197,12 +198,22 @@ public class Producer {
             });
             return;
         }
+        // TODO: 2/15/23 检查是否可以发送
         if (checkAndStartPublish(producerId, highestSequenceId, headersAndPayload, batchSize)) {
             publishMessageToTopic(headersAndPayload, lowestSequenceId, highestSequenceId, batchSize, isChunked,
                     isMarker);
         }
     }
 
+    // TODO: 2/15/23 检查是否可以发送，可以把RG的限制条件加入到这里，
+    //  否则即便消息超过了quota，那么该消息还是会放行。quota只针对该条消息后面的消息限制。这样会导致quota无效。
+    //  即：我们设置的quota为2M，该消息为5M，该条消息会被放行。紧接着在quota的第二个周期，第二条消息5M也会被放行，这样，我们的quota无效
+    //  有以下的quota情况,可以修改为类似的逻辑
+    //  1. 我们配置的quota为2M，该消息没有超过quota，则放行
+    //  2. 我们配置的quota为2M，如果消息超过quota值，不放行，返回error 'Exceed the quota'。即单条消息超过了quot值，一直会发送失败。
+    //  3. 这里也可能会存在临界点。即quota周期刚好切换的时候。
+    //  3.1. 前面有做quota检查 startSendOperation()方法里面
+    //  3.2. 现在再做quota检查，两个检查点刚好在quota周期切换前，后 -》 是否直接在startSendOperation里面检查，如果超quota后直接返回呢？
     public boolean checkAndStartPublish(long producerId, long sequenceId, ByteBuf headersAndPayload, long batchSize) {
         if (isClosed) {
             cnx.execute(() -> {
@@ -254,6 +265,7 @@ public class Producer {
 
     private void publishMessageToTopic(ByteBuf headersAndPayload, long lowestSequenceId, long highestSequenceId,
                                        long batchSize, boolean isChunked, boolean isMarker) {
+        // TODO: 2/15/23 发送消息到topic
         topic.publishMessage(headersAndPayload,
                 MessagePublishContext.get(this, lowestSequenceId,
                         highestSequenceId, msgIn, headersAndPayload.readableBytes(), batchSize,

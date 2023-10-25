@@ -238,6 +238,7 @@ public class TopicName implements ServiceUnitId {
         if (index == -1 || this.toString().contains(PARTITIONED_TOPIC_SUFFIX)) {
             return this;
         }
+        // TODO: 2/24/23 test-partition-0
         String partitionName = this.toString() + PARTITIONED_TOPIC_SUFFIX + index;
         return get(partitionName);
     }
@@ -309,6 +310,7 @@ public class TopicName implements ServiceUnitId {
     }
 
     public String getRestPath(boolean includeDomain) {
+        // TODO: 1/18/23 默认情况下是有加前缀的
         String domainName = includeDomain ? domain + "/" : "";
         if (isV2()) {
             return String.format("%s%s/%s/%s", domainName, tenant, namespacePortion, getEncodedLocalName());

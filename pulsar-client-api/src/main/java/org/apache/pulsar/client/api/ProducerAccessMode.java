@@ -23,17 +23,21 @@ package org.apache.pulsar.client.api;
  * The type of access to the topic that the producer requires.
  */
 public enum ProducerAccessMode {
+    // TODO: 10/23/23 producer对topic的访问模式 ，默认为shared，即多个producer可以发送消息到一个topic
     /**
      * By default multiple producers can publish on a topic.
      */
     Shared,
 
+
     /**
+     * todo 独占模式，即只有一个producer向topic发送数据，其他的producer创建的时候，会立刻失败
      * Require exclusive access for producer. Fail immediately if there's already a producer connected.
      */
     Exclusive,
 
     /**
+     * todo 等待独占，即只有一个producer向topic发送数据，其他的producer可以被创建，但是都是在等待中
      * Producer creation is pending until it can acquire exclusive access.
      */
     WaitForExclusive,

@@ -317,6 +317,7 @@ public class MessageDeduplication {
      * @return true if the message should be published or false if it was recognized as a duplicate
      */
     public MessageDupStatus isDuplicate(PublishContext publishContext, ByteBuf headersAndPayload) {
+        // TODO: 2/24/23 判断是否消息已经发送给了bookie
         if (!isEnabled() || publishContext.isMarkerMessage()) {
             return MessageDupStatus.NotDup;
         }
@@ -342,6 +343,7 @@ public class MessageDeduplication {
         // disconnects and re-connects very quickly. At that point the call can be coming from a different thread
         synchronized (highestSequencedPushed) {
             Long lastSequenceIdPushed = highestSequencedPushed.get(producerName);
+            // TODO: 2/24/23 sequenceId进行比较
             if (lastSequenceIdPushed != null && sequenceId <= lastSequenceIdPushed) {
                 if (log.isDebugEnabled()) {
                     log.debug("[{}] Message identified as duplicated producer={} seq-id={} -- highest-seq-id={}",
@@ -355,6 +357,7 @@ public class MessageDeduplication {
                 // lastSequenceIdPushed, then we cannot be sure whether the message is a dup or not
                 // we should return an error to the producer for the latter case so that it can retry at a future time
                 Long lastSequenceIdPersisted = highestSequencedPersisted.get(producerName);
+                // TODO: 2/24/23 如果 sequenceId <= lastSequenceIdPersisted, 说明这条消息一定是重复消息
                 if (lastSequenceIdPersisted != null && sequenceId <= lastSequenceIdPersisted) {
                     return MessageDupStatus.Dup;
                 } else {

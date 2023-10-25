@@ -37,6 +37,8 @@ import org.slf4j.LoggerFactory;
 public abstract class AbstractDispatcherSingleActiveConsumer extends AbstractBaseDispatcher {
 
     protected final String topicName;
+    // TODO: 2/22/23 在ACTIVE_CONSUMER_UPDATER里面，对应这一个<AbstractDispatcherSingleActiveConsumer, Consumer> ,
+    //  AbstractDispatcherSingleActiveConsumer向bookie读取消息，返回给Consumer
     protected static final AtomicReferenceFieldUpdater<AbstractDispatcherSingleActiveConsumer, Consumer>
             ACTIVE_CONSUMER_UPDATER = AtomicReferenceFieldUpdater.newUpdater(
             AbstractDispatcherSingleActiveConsumer.class, Consumer.class, "activeConsumer");
@@ -61,8 +63,10 @@ public abstract class AbstractDispatcherSingleActiveConsumer extends AbstractBas
     public AbstractDispatcherSingleActiveConsumer(SubType subscriptionType, int partitionIndex,
                                                   String topicName, Subscription subscription,
                                                   ServiceConfiguration serviceConfig, ManagedCursor cursor) {
+        // TODO: 2/23/23 父类构造方法
         super(subscription, serviceConfig);
         this.topicName = topicName;
+        // TODO: 2/23/23 这里初始化
         this.consumers = new CopyOnWriteArrayList<>();
         this.partitionIndex = partitionIndex;
         this.subscriptionType = subscriptionType;
@@ -86,8 +90,8 @@ public abstract class AbstractDispatcherSingleActiveConsumer extends AbstractBas
     /**
      * Pick active consumer for a topic for {@link SubType#Failover} subscription.
      * If it's a non-partitioned topic then it'll pick consumer based on order they subscribe to the topic.
-     * If is's a partitioned topic, first sort consumers based on their priority level and consumer name then
-     * distributed partitions evenly across consumers with highest priority level.
+     * If it's a partitioned topic, first sort consumers based on their priority level and consumer name then
+     * distributed partitions evenly across consumers with the highest priority level.
      *
      * @return the true consumer if the consumer is changed, otherwise false.
      */
@@ -136,6 +140,7 @@ public abstract class AbstractDispatcherSingleActiveConsumer extends AbstractBas
         }
     }
 
+    // TODO: 2/23/23 把consumer加入到dispatcher里面
     public synchronized void addConsumer(Consumer consumer) throws BrokerServiceException {
         if (IS_CLOSED_UPDATER.get(this) == TRUE) {
             log.warn("[{}] Dispatcher is already closed. Closing consumer {}", this.topicName, consumer);
@@ -166,7 +171,7 @@ public abstract class AbstractDispatcherSingleActiveConsumer extends AbstractBas
         if (consumers.isEmpty()) {
             isFirstRead = true;
         }
-
+        // TODO: 2/23/23 把consumer加入到Dispatch而里面的 consumers里面
         consumers.add(consumer);
 
         if (!pickAndScheduleActiveConsumer()) {
