@@ -281,11 +281,14 @@ public class PulsarClientImpl implements PulsarClient {
         return producerBuilder;
     }
 
+    // TODO: 11/2/23 consumer有两个接口实现
     @Override
     public ConsumerBuilder<byte[]> newConsumer() {
+        // TODO: 11/2/23  一个默认Schema.BYTES，用于兼容原来的客户端
         return new ConsumerBuilderImpl<>(this, Schema.BYTES);
     }
 
+    // TODO: 11/2/23  一个自定义Schema类型的，用于自定义。
     @Override
     public <T> ConsumerBuilder<T> newConsumer(Schema<T> schema) {
         return new ConsumerBuilderImpl<>(this, schema);

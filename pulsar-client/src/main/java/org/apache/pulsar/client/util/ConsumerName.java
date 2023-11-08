@@ -25,4 +25,10 @@ public class ConsumerName {
     public static String generateRandomName() {
         return DigestUtils.sha1Hex(UUID.randomUUID().toString()).substring(0, 5);
     }
+
+    public static void main(String[] args) {
+        System.out.println(generateRandomName());
+        // 4e009
+        // d5e72
+    }
 }

@@ -256,6 +256,7 @@ public class TopicName implements ServiceUnitId {
     }
 
     /**
+     * 获取 topic full name
      * For partitions in a topic, return the base partitioned topic name.
      * Eg:
      * <ul>

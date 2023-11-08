@@ -448,15 +448,20 @@ public class ClientCnx extends PulsarHandler {
     }
 
 
+    // TODO: 11/6/23  通信框架有个handleMessage方法
     @Override
     protected void handleMessage(CommandMessage cmdMessage, ByteBuf headersAndPayload) {
+        // TODO: 11/6/23 检查客户端的状态是否为Ready
         checkArgument(state == State.Ready);
 
+        // TODO: 11/6/23 从broker端接收消息
         if (log.isDebugEnabled()) {
             log.debug("{} Received a message from the server: {}", ctx.channel(), cmdMessage);
         }
+        // TODO: 11/6/23 根据consumerId 获取到对应的consumer实例
         ConsumerImpl<?> consumer = consumers.get(cmdMessage.getConsumerId());
         if (consumer != null) {
+            // TODO: 11/6/23 处理接收的msg
             consumer.messageReceived(cmdMessage, headersAndPayload, this);
         }
     }

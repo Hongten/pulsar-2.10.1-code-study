@@ -186,15 +186,20 @@ public class PersistentAcknowledgmentsGroupingTracker implements Acknowledgments
         }
     }
 
+    // TODO: 11/6/23  主要讲消息被上层应用处理后，要向 broker 确认已表示此消息已被上层应用成功消费。
+    //  这里为了提高确认性能，有多个地方优化：批量确认，累积确认，批量和累积确认一起发送等手段。大大增加了效率和减轻 broker 的压力
     @Override
     public CompletableFuture<Void> addAcknowledgment(MessageIdImpl msgId, AckType ackType,
                                                      Map<String, Long> properties) {
+        // TODO: 11/6/23 批量消息
         if (msgId instanceof BatchMessageIdImpl) {
+            // TODO: 11/6/23 批消息id 
             BatchMessageIdImpl batchMessageId = (BatchMessageIdImpl) msgId;
-            if (ackType == AckType.Individual) {
+            if (ackType == AckType.Individual) { // TODO: 11/6/23 ack类型为 Individual，单一确认
                 consumer.onAcknowledge(msgId, null);
                 // ack this ack carry bitSet index and judge bit set are all ack
                 if (batchMessageId.ackIndividual()) {
+                    // TODO: 11/6/23  
                     MessageIdImpl messageId = modifyBatchMessageIdAndStatesInConsumer(batchMessageId);
                     return doIndividualAck(messageId, properties);
                 } else if (batchIndexAckEnabled){
@@ -204,7 +209,7 @@ public class PersistentAcknowledgmentsGroupingTracker implements Acknowledgments
                     // all ack complete
                     return CompletableFuture.completedFuture(null);
                 }
-            } else {
+            } else { // TODO: 11/6/23 ack类型为累积确认 
                 consumer.onAcknowledgeCumulative(msgId, null);
                 if (batchMessageId.ackCumulative()) {
                     return doCumulativeAck(msgId, properties, null);
@@ -224,11 +229,16 @@ public class PersistentAcknowledgmentsGroupingTracker implements Acknowledgments
                 }
             }
         } else {
+            // TODO: 11/6/23 单条消息
+            // TODO: 11/6/23 单条消息确认
             if (ackType == AckType.Individual) {
+                // TODO: 11/6/23 拦截器处理
                 consumer.onAcknowledge(msgId, null);
+                // TODO: 11/6/23 修改消息状态
                 modifyMessageIdStatesInConsumer(msgId);
                 return doIndividualAck(msgId, properties);
             } else {
+                // TODO: 11/6/23 拦截器处理 
                 consumer.onAcknowledgeCumulative(msgId, null);
                 return doCumulativeAck(msgId, properties, null);
             }
@@ -236,21 +246,28 @@ public class PersistentAcknowledgmentsGroupingTracker implements Acknowledgments
     }
 
     private MessageIdImpl modifyBatchMessageIdAndStatesInConsumer(BatchMessageIdImpl batchMessageId) {
+        // TODO: 11/6/23 构建  MessageIdImpl 实例
         MessageIdImpl messageId = new MessageIdImpl(batchMessageId.getLedgerId(),
                 batchMessageId.getEntryId(), batchMessageId.getPartitionIndex());
+        // TODO: 11/6/23   ack消息增加1条
         consumer.getStats().incrementNumAcksSent(batchMessageId.getBatchSize());
+        // TODO: 11/6/23 把消息从 UnAckTracker 和死信队列中移除 
         clearMessageIdFromUnAckTrackerAndDeadLetter(messageId);
         return messageId;
     }
 
     private void modifyMessageIdStatesInConsumer(MessageIdImpl messageId) {
+        // TODO: 11/6/23 ack消息增加1条
         consumer.getStats().incrementNumAcksSent(1);
+        // TODO: 11/6/23 把消息从 UnAckTracker 和死信队列中移除
         clearMessageIdFromUnAckTrackerAndDeadLetter(messageId);
     }
 
     private void clearMessageIdFromUnAckTrackerAndDeadLetter(MessageIdImpl messageId) {
+        // TODO: 11/6/23 把消息从 UnAckTracker（未确认消息跟踪器） 中移除
         consumer.getUnAckedMessageTracker().remove(messageId);
         if (consumer.getPossibleSendToDeadLetterTopicMessages() != null) {
+            // TODO: 11/6/23 如果死信队列开启，则把死信队列中的消息移除 
             consumer.getPossibleSendToDeadLetterTopicMessages().remove(messageId);
         }
     }
@@ -294,6 +311,7 @@ public class PersistentAcknowledgmentsGroupingTracker implements Acknowledgments
     private CompletableFuture<Void> doIndividualBatchAck(BatchMessageIdImpl batchMessageId,
                                                          Map<String, Long> properties) {
         if (acknowledgementGroupTimeMicros == 0 || (properties != null && !properties.isEmpty())) {
+            // TODO: 11/6/23 立刻做批量消息ACK 
             return doImmediateBatchIndexAck(batchMessageId, batchMessageId.getBatchIndex(),
                     batchMessageId.getBatchSize(), AckType.Individual, properties);
         } else {
@@ -321,12 +339,14 @@ public class PersistentAcknowledgmentsGroupingTracker implements Acknowledgments
 
     private CompletableFuture<Void> doCumulativeAck(MessageIdImpl messageId, Map<String, Long> properties,
                                                     BitSetRecyclable bitSet) {
+        // TODO: 11/6/23  未确认消息跟踪器 里面移除 msgID， 并且把 numAcksSent 增加相同的数量
         consumer.getStats().incrementNumAcksSent(consumer.getUnAckedMessageTracker().removeMessagesTill(messageId));
         if (acknowledgementGroupTimeMicros == 0 || (properties != null && !properties.isEmpty())) {
             // We cannot group acks if the delay is 0 or when there are properties attached to it. Fortunately that's an
             // uncommon condition since it's only used for the compaction subscription.
             return doImmediateAck(messageId, AckType.Cumulative, properties, bitSet);
         } else {
+            // TODO: 11/6/23 默认为false 
             if (isAckReceiptEnabled(consumer.getClientCnx())) {
                 // when flush the ack, we should bind the this ack in the currentFuture, during this time we can't
                 // change currentFuture. but we can lock by the read lock, because the currentFuture is not change
@@ -441,6 +461,7 @@ public class PersistentAcknowledgmentsGroupingTracker implements Acknowledgments
             bitSet.clear(batchIndex);
         }
 
+        // TODO: 11/6/23  创建msg ACK命令并发送给broker 
         CompletableFuture<Void> completableFuture = newMessageAckCommandAndWrite(cnx, consumer.consumerId,
                 msgId.ledgerId, msgId.entryId, bitSet, ackType, null, properties, true, null, null);
         bitSet.recycle();
@@ -464,6 +485,7 @@ public class PersistentAcknowledgmentsGroupingTracker implements Acknowledgments
         if (isAckReceiptEnabled(consumer.getClientCnx())) {
             this.lock.writeLock().lock();
             try {
+                // TODO: 11/6/23 调用异步方法
                 flushAsync(cnx);
             } finally {
                 this.lock.writeLock().unlock();
@@ -475,6 +497,7 @@ public class PersistentAcknowledgmentsGroupingTracker implements Acknowledgments
 
     private void flushAsync(ClientCnx cnx) {
         boolean shouldFlush = false;
+        // TODO: 11/6/23 累积ACK确认
         if (cumulativeAckFlushRequired) {
             newMessageAckCommandAndWrite(cnx, consumer.consumerId, lastCumulativeAck.messageId.ledgerId,
                     lastCumulativeAck.messageId.getEntryId(), lastCumulativeAck.bitSetRecyclable,
@@ -485,6 +508,7 @@ public class PersistentAcknowledgmentsGroupingTracker implements Acknowledgments
             cumulativeAckFlushRequired = false;
         }
 
+        // TODO: 11/6/23 所有的pending ACK的数据
         // Flush all individual acks
         List<Triple<Long, Long, ConcurrentBitSetRecyclable>> entriesToAck =
                 new ArrayList<>(pendingIndividualAcks.size() + pendingIndividualBatchIndexAcks.size());
@@ -519,6 +543,7 @@ public class PersistentAcknowledgmentsGroupingTracker implements Acknowledgments
                     if (msgId == null) {
                         break;
                     }
+                    // TODO: 11/6/23 创建msg ACK命令并发送给broker
                     newMessageAckCommandAndWrite(cnx, consumer.consumerId, msgId.getLedgerId(), msgId.getEntryId(),
                             null, AckType.Individual, null, Collections.emptyMap(), false,
                             null, null);
@@ -539,7 +564,7 @@ public class PersistentAcknowledgmentsGroupingTracker implements Acknowledgments
         }
 
         if (entriesToAck.size() > 0) {
-
+            // TODO: 11/6/23 创建msg ACK命令并发送给broker
             newMessageAckCommandAndWrite(cnx, consumer.consumerId, 0L, 0L,
                     null, AckType.Individual, null, null, true,
                     currentIndividualAckFuture, entriesToAck);
@@ -552,6 +577,7 @@ public class PersistentAcknowledgmentsGroupingTracker implements Acknowledgments
                                 + " -- individual-batch-index-acks: {}",
                         consumer, lastCumulativeAck, pendingIndividualAcks, entriesToAck);
             }
+            // TODO: 11/6/23 刷新缓冲区，发送消息 
             cnx.ctx().flush();
         }
 
@@ -604,6 +630,7 @@ public class PersistentAcknowledgmentsGroupingTracker implements Acknowledgments
         return completableFuture;
     }
 
+    // TODO: 11/6/23 创建msg ACK命令并发送给broker 
     private CompletableFuture<Void> newMessageAckCommandAndWrite(
             ClientCnx cnx, long consumerId, long ledgerId,
             long entryId, BitSetRecyclable ackSet, AckType ackType,
@@ -615,9 +642,11 @@ public class PersistentAcknowledgmentsGroupingTracker implements Acknowledgments
             final long requestId = consumer.getClient().newRequestId();
             final ByteBuf cmd;
             if (entriesToAck == null) {
+                // TODO: 11/6/23 创建单个消息ACK命令 
                 cmd = Commands.newAck(consumerId, ledgerId, entryId, ackSet,
                         ackType, null, properties, requestId);
             } else {
+                // TODO: 11/6/23 创建多个消息的ACK命令 
                 cmd = Commands.newMultiMessageAck(consumerId, entriesToAck, requestId);
             }
             if (timedCompletableFuture == null) {
@@ -628,6 +657,7 @@ public class PersistentAcknowledgmentsGroupingTracker implements Acknowledgments
                 } else {
                     this.currentCumulativeAckFuture = new TimedCompletableFuture<>();
                 }
+                // TODO: 11/6/23 发送给broker 
                 cnx.newAckForReceiptWithFuture(cmd, requestId, timedCompletableFuture);
                 return timedCompletableFuture;
             }
@@ -652,6 +682,7 @@ public class PersistentAcknowledgmentsGroupingTracker implements Acknowledgments
                 cmd = Commands.newMultiMessageAck(consumerId, entriesToAck, -1);
             }
             if (flush) {
+                // TODO: 11/6/23 发送给broker 
                 cnx.ctx().writeAndFlush(cmd, cnx.ctx().voidPromise());
             } else {
                 cnx.ctx().write(cmd, cnx.ctx().voidPromise());

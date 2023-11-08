@@ -32,12 +32,12 @@ public enum ConsumerCryptoFailureAction {
     /**
      * This is the default option to fail consume messages until crypto succeeds.
      */
-    FAIL,
+    FAIL,//消息投递失败，忽略它，等待系统确认
 
     /**
      * Message is silently acknowledged and not delivered to the application.
      */
-    DISCARD,
+    DISCARD, //解密失败，丢弃当前消息，并通知broker推送消息
 
     /**
      * Deliver the encrypted message to the application. It's the application's responsibility to decrypt the message.
@@ -48,5 +48,5 @@ public enum ConsumerCryptoFailureAction {
      * <p>Delivered encrypted message contains {@link org.apache.pulsar.common.api.EncryptionContext} which contains
      * encryption and compression information in it using which application can decrypt consumed message payload.
      */
-    CONSUME;
+    CONSUME; //即使不解密或解密失败，继续给应用消费
 }
