@@ -39,6 +39,7 @@ import org.apache.pulsar.common.classification.InterfaceStability;
 public interface Consumer<T> extends Closeable {
 
     /**
+     * 返回 Topic
      * Get a topic for the consumer.
      *
      * @return topic for the consumer
@@ -46,6 +47,7 @@ public interface Consumer<T> extends Closeable {
     String getTopic();
 
     /**
+     * 返回订阅名
      * Get a subscription for the consumer.
      *
      * @return subscription for the consumer
@@ -53,6 +55,7 @@ public interface Consumer<T> extends Closeable {
     String getSubscription();
 
     /**
+     * 不再订阅
      * Unsubscribe the consumer.
      *
      * <p>This call blocks until the consumer is unsubscribed.
@@ -76,6 +79,7 @@ public interface Consumer<T> extends Closeable {
     CompletableFuture<Void> unsubscribeAsync();
 
     /**
+     * 接收消息
      * Receives a single message.
      *
      * <p>This calls blocks until a message is available.
@@ -89,6 +93,7 @@ public interface Consumer<T> extends Closeable {
     Message<T> receive() throws PulsarClientException;
 
     /**
+     * 异步操作，功能同上
      * Receive a single message
      *
      * <p>Retrieves a message when it will be available and completes {@link CompletableFuture} with received message.
@@ -107,6 +112,7 @@ public interface Consumer<T> extends Closeable {
     CompletableFuture<Message<T>> receiveAsync();
 
     /**
+     * 指定时间内接收消息，超过则返回空
      * Receive a single message.
      *
      * <p>Retrieves a message, waiting up to the specified wait time if necessary.
@@ -158,6 +164,9 @@ public interface Consumer<T> extends Closeable {
     CompletableFuture<Messages<T>> batchReceiveAsync();
 
     /**
+     * 确认单个消息
+     * 消息确认，顾名思义就是上层应用已经把当前消息业务处理完毕了，发消息通知给 broker 服务器，表示此消息已经完成消费，不再需要推送给消费端了
+     * ，内部实现其实是记录了消费偏移，Pulsar系统叫游标，解析 broker 时，将详细讲解，这里只是提一下。前面已经有提到消息确认接口.
      * Acknowledge the consumption of a single message.
      *
      * @param message
@@ -168,6 +177,7 @@ public interface Consumer<T> extends Closeable {
     void acknowledge(Message<?> message) throws PulsarClientException;
 
     /**
+     * 确认单个消息
      * Acknowledge the consumption of a single message, identified by its {@link MessageId}.
      *
      * @param messageId
@@ -194,6 +204,7 @@ public interface Consumer<T> extends Closeable {
     void acknowledge(List<MessageId> messageIdList) throws PulsarClientException;
 
     /**
+     * ACK失败对消息的处理
      * Acknowledge the failure to process a single message.
      *
      * <p>When a message is "negatively acked" it will be marked for redelivery after
@@ -358,6 +369,8 @@ public interface Consumer<T> extends Closeable {
     void reconsumeLater(Messages<?> messages, long delayTime, TimeUnit unit) throws PulsarClientException;
 
     /**
+     * 确认接收流中的所有消息（并包括）提供传入参数的消息。此方法将阻塞，直到确认已发送给broker。 之后，消息将不会重新传递给此消费者。
+     * 当订阅类型设置为 ConsumerShared 时，不能使用累积确认。 它等同于调用asyncAcknowledgeCumulative（Message）并等待触发回调。
      * Acknowledge the reception of all the messages in the stream up to (and including) the provided message.
      *
      * <p>This method will block until the acknowledge has been sent to the broker. After that, the messages will not be
@@ -392,6 +405,7 @@ public interface Consumer<T> extends Closeable {
     void acknowledgeCumulative(MessageId messageId) throws PulsarClientException;
 
     /**
+     * 异步累积确认接口，功能参考同步接口
      * Acknowledge the reception of all the messages in the stream up to (and including) the provided message with this
      * transaction, it will store in transaction pending ack.
      *
@@ -603,6 +617,7 @@ public interface Consumer<T> extends Closeable {
                                                           long delayTime, TimeUnit unit);
 
     /**
+     * 消费者状态信息
      * Get statistics for the consumer.
      * <ul>
      * <li>numMsgsReceived : Number of messages received in the current interval
@@ -622,12 +637,14 @@ public interface Consumer<T> extends Closeable {
     ConsumerStats getStats();
 
     /**
+     * 关闭消费者
      * Close the consumer and stop the broker to push more messages.
      */
     @Override
     void close() throws PulsarClientException;
 
     /**
+     * 异步关闭消费者
      * Asynchronously close the consumer and stop the broker to push more messages.
      *
      * @return a future that can be used to track the completion of the operation
@@ -635,6 +652,8 @@ public interface Consumer<T> extends Closeable {
     CompletableFuture<Void> closeAsync();
 
     /**
+     * 如果 Topic 终止并且消费者已经消费了 Topic 中的所有消息，则返回true，
+     * 请注意，这不是简单的意味着消费者追上生产者最新发布的消息，而不是 Topic 真的需要 “终止”
      * Return true if the topic was terminated and this consumer has already consumed all the messages in the topic.
      *
      * <p>Please note that this does not simply mean that the consumer is caught up with the last message published by
@@ -643,6 +662,9 @@ public interface Consumer<T> extends Closeable {
     boolean hasReachedEndOfTopic();
 
     /**
+     * 重新传递所有未确认的消息。 在故障转移（Failover）模式下，如果消费者对于给定 Topic 处于不活动状态，则会忽略该请求。
+     * 在共享（Shared）模式下，要重传的消息将被均匀分布在所有连接的消费者中。 这是一个非阻塞调用，不会抛出异常。
+     * 如果连接中断，重新连接后将重新传递消息。
      * Redelivers all the unacknowledged messages. In Failover mode, the request is ignored if the consumer is not
      * active for the given topic. In Shared mode, the consumers messages to be redelivered are distributed across all
      * the connected consumers. This is a non blocking call and doesn't throw an exception. In case the connection
@@ -651,6 +673,7 @@ public interface Consumer<T> extends Closeable {
     void redeliverUnacknowledgedMessages();
 
     /**
+     * 指定消息重置当前消费者的订阅。注意，此操作只能在非分区 Topic 上，当然，多分区 Topic 时消费者可以操作单分区
      * Reset the subscription associated with this consumer to a specific message id.
      *
      * <p>The message id can either be a specific message or represent the first or last messages in the topic.
@@ -668,6 +691,7 @@ public interface Consumer<T> extends Closeable {
     void seek(MessageId messageId) throws PulsarClientException;
 
     /**
+     * 根据时间来重置消费位置
      * Reset the subscription associated with this consumer to a specific message publish time.
      *
      * @param timestamp
@@ -734,6 +758,7 @@ public interface Consumer<T> extends Closeable {
     CompletableFuture<Void> seekAsync(long timestamp);
 
     /**
+     * 获取最近的消费的message的id
      * Get the last message id available for consume.
      *
      * @return the last message id.
@@ -748,28 +773,33 @@ public interface Consumer<T> extends Closeable {
     CompletableFuture<MessageId> getLastMessageIdAsync();
 
     /**
+     * consumer是否和broker有连接
      * @return Whether the consumer is connected to the broker
      */
     boolean isConnected();
 
     /**
+     * 获取消费者名称
      * Get the name of consumer.
      * @return consumer name.
      */
     String getConsumerName();
 
     /**
+     * 暂停消费
      * Stop requesting new messages from the broker until {@link #resume()} is called. Note that this might cause
      * {@link #receive()} to block until {@link #resume()} is called and new messages are pushed by the broker.
      */
     void pause();
 
     /**
+     * 恢复消费
      * Resume requesting messages from the broker.
      */
     void resume();
 
     /**
+     * 获取最后一次和broker断联的时间
      * @return The last disconnected timestamp of the consumer
      */
     long getLastDisconnectedTimestamp();

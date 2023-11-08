@@ -38,18 +38,29 @@ import org.apache.pulsar.client.impl.conf.ConsumerConfigurationData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+// TODO: 11/2/23 未确认消息跟踪器， 每个消息接收后首先都要放入此容器里，然后其监控是否消费超时，
+//  如果超时，则移除并重新通知 broker 推送过来，
+//  而且还会跟踪消息未消费次数，如果超过次数，则会放入死信队列，然后发送系统设置的死信Topic ，
+//  另外此消息会被系统确认“消费”（意味着不再推送重新消费了，要消息只能到死信 Topic 里取）。
+
 public class UnAckedMessageTracker implements Closeable {
     private static final Logger log = LoggerFactory.getLogger(UnAckedMessageTracker.class);
 
+    // TODO: 11/6/23 消息ID-消息集（为了更好的针对消息ID索引）
     protected final HashMap<MessageId, HashSet<MessageId>> messageIdPartitionMap;
+    // TODO: 11/6/23 双向列表 用于时间分区
     protected final ArrayDeque<HashSet<MessageId>> timePartitions;
 
+    // TODO: 11/6/23 读写锁
     protected final Lock readLock;
     protected final Lock writeLock;
 
+    // TODO: 11/6/23 UnAckedMessageTracker 的空实现，用于非持久化消息组件
     public static final UnAckedMessageTrackerDisabled UNACKED_MESSAGE_TRACKER_DISABLED =
             new UnAckedMessageTrackerDisabled();
+    // TODO: 11/6/23 确认超时时间
     protected final long ackTimeoutMillis;
+    // TODO: 11/6/23 滴答时间（或者叫单位时间）
     protected final long tickDurationInMs;
 
     private static class UnAckedMessageTrackerDisabled extends UnAckedMessageTracker {
@@ -111,6 +122,7 @@ public class UnAckedMessageTracker implements Closeable {
         this.ackTimeoutMillis = conf.getAckTimeoutMillis();
         this.tickDurationInMs = Math.min(conf.getTickDurationMillis(), conf.getAckTimeoutMillis());
         checkArgument(tickDurationInMs > 0 && ackTimeoutMillis >= tickDurationInMs);
+        // TODO: 11/6/23 读写锁
         ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock();
         this.readLock = readWriteLock.readLock();
         this.writeLock = readWriteLock.writeLock();
@@ -118,10 +130,14 @@ public class UnAckedMessageTracker implements Closeable {
             this.messageIdPartitionMap = new HashMap<>();
             this.timePartitions = new ArrayDeque<>();
 
+            // TODO: 11/6/23 设置一个时间分区，假设确认超时时间为11000ms，滴答时间为2000ms，此时计算结果为5 
             int blankPartitions = (int) Math.ceil((double) this.ackTimeoutMillis / this.tickDurationInMs);
+            // TODO: 11/6/23 创建6个时间分区容器 
             for (int i = 0; i < blankPartitions + 1; i++) {
                 timePartitions.add(new HashSet<>(16, 1));
             }
+            // TODO: 11/6/23  新增一个定时器任务，tickDurationInMs 为轮询间隔，也就是这里会处理消息消费超时，
+            //  并通知 broker  进行重新投递 ，这里 UnAckedMessageTracker 最核心的处理
             timeout = client.timer().newTimeout(new TimerTask() {
                 @Override
                 public void run(Timeout t) throws Exception {
@@ -130,11 +146,15 @@ public class UnAckedMessageTracker implements Closeable {
 
                     writeLock.lock();
                     try {
+                        // TODO: 11/6/23 获取队列头部 ，如果容器内有消息，此时就认为过期了，把过期消息移除，并保留下来，
+                        //  为接下来通知 broker 重发这些消息打下基础
                         HashSet<MessageId> headPartition = timePartitions.removeFirst();
                         if (!headPartition.isEmpty()) {
                             log.info("[{}] {} messages will be re-delivered", consumerBase, headPartition.size());
+                            // TODO: 11/6/23
                             headPartition.forEach(messageId -> {
                                 addChunkedMessageIdsAndRemoveFromSequenceMap(messageId, messageIds, consumerBase);
+                                // TODO: 11/6/23 过期的msgID 集合
                                 messageIds.add(messageId);
                                 messageIdPartitionMap.remove(messageId);
                             });
@@ -144,10 +164,12 @@ public class UnAckedMessageTracker implements Closeable {
                         timePartitions.addLast(headPartition);
                     } finally {
                         writeLock.unlock();
+                        // TODO: 11/6/23 如果有过期消息，则通知 broker 重新投递消息
                         if (messageIds.size() > 0) {
                             consumerBase.onAckTimeoutSend(messageIds);
                             consumerBase.redeliverUnacknowledgedMessages(messageIds);
                         }
+                        // TODO: 11/6/23 准备下一次任务定时
                         timeout = client.timer().newTimeout(this, tickDurationInMs, TimeUnit.MILLISECONDS);
                     }
                 }
@@ -170,6 +192,7 @@ public class UnAckedMessageTracker implements Closeable {
         }
     }
 
+    // TODO: 11/6/23 清空容器
     public void clear() {
         writeLock.lock();
         try {
@@ -180,9 +203,11 @@ public class UnAckedMessageTracker implements Closeable {
         }
     }
 
+    // TODO: 11/6/23 添加消息
     public boolean add(MessageId messageId) {
         writeLock.lock();
         try {
+            // TODO: 11/6/23 从尾部获取一个哈希set，并把它放入message map，再把消息放入哈希set
             HashSet<MessageId> partition = timePartitions.peekLast();
             HashSet<MessageId> previousPartition = messageIdPartitionMap.putIfAbsent(messageId, partition);
             if (previousPartition == null) {
@@ -199,6 +224,7 @@ public class UnAckedMessageTracker implements Closeable {
         return add(messageId);
     }
 
+    // TODO: 11/6/23 是否为空
     boolean isEmpty() {
         readLock.lock();
         try {
@@ -208,6 +234,7 @@ public class UnAckedMessageTracker implements Closeable {
         }
     }
 
+    // TODO: 11/6/23 移除某消息ID
     public boolean remove(MessageId messageId) {
         writeLock.lock();
         try {
@@ -231,6 +258,7 @@ public class UnAckedMessageTracker implements Closeable {
         }
     }
 
+    // TODO: 11/6/23 移除比MessageId小的所有消息
     public int removeMessagesTill(MessageId msgId) {
         writeLock.lock();
         try {
@@ -239,6 +267,7 @@ public class UnAckedMessageTracker implements Closeable {
             while (iterator.hasNext()) {
                 Entry<MessageId, HashSet<MessageId>> entry = iterator.next();
                 MessageId messageId = entry.getKey();
+                // TODO: 11/6/23 比较方法
                 if (messageId.compareTo(msgId) <= 0) {
                     entry.getValue().remove(messageId);
                     iterator.remove();

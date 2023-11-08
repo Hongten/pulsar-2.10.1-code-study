@@ -68,29 +68,37 @@ import org.slf4j.LoggerFactory;
 //  这些接口的通过逻辑都已经实现，一些无法统一的行为就作为抽象方法等待子类去实现，模板模式
 public abstract class ConsumerBase<T> extends HandlerState implements Consumer<T> {
 
+    // TODO: 11/2/23 订阅名称
     protected final String subscription;
+    // TODO: 11/2/23 配置信息
     protected final ConsumerConfigurationData<T> conf;
+    // TODO: 11/2/23 消费者名称
     protected final String consumerName;
     protected final CompletableFuture<Consumer<T>> subscribeFuture;
     protected final MessageListener<T> listener;
     protected final ConsumerEventListener consumerEventListener;
     protected final ExecutorProvider executorProvider;
     protected final ScheduledExecutorService externalPinnedExecutor;
+    // TODO: 11/6/23 客户端内部task执行服务 
     protected final ScheduledExecutorService internalPinnedExecutor;
+    // TODO: 11/3/23 这个是在consumer客户端的一个消息缓存队列
     final BlockingQueue<Message<T>> incomingMessages;
     protected ConcurrentOpenHashMap<MessageIdImpl, MessageIdImpl[]> unAckedChunkedMessageIdSequenceMap;
+    // TODO: 11/6/23 pendingReceives 队列
     protected final ConcurrentLinkedQueue<CompletableFuture<Message<T>>> pendingReceives;
     protected int maxReceiverQueueSize;
     protected final Schema<T> schema;
     protected final ConsumerInterceptors<T> interceptors;
     protected final BatchReceivePolicy batchReceivePolicy;
     protected final ConcurrentLinkedQueue<OpBatchReceive<T>> pendingBatchReceives;
+    // TODO: 11/3/23 记录拉取的消息数
     private static final AtomicLongFieldUpdater<ConsumerBase> INCOMING_MESSAGES_SIZE_UPDATER = AtomicLongFieldUpdater
             .newUpdater(ConsumerBase.class, "incomingMessagesSize");
     protected volatile long incomingMessagesSize = 0;
     protected volatile Timeout batchReceiveTimeout = null;
     protected final Lock reentrantLock = new ReentrantLock();
 
+    // TODO: 11/3/23 consumer都会被分配一个consumerEpoch 
     protected static final AtomicLongFieldUpdater<ConsumerBase> CONSUMER_EPOCH =
             AtomicLongFieldUpdater.newUpdater(ConsumerBase.class, "consumerEpoch");
 
@@ -106,10 +114,12 @@ public abstract class ConsumerBase<T> extends HandlerState implements Consumer<T
         this.maxReceiverQueueSize = receiverQueueSize;
         this.subscription = conf.getSubscriptionName();
         this.conf = conf;
+        // TODO: 11/2/23 如果没设置消费者名称，则随机生成, e.g. d5e72
         this.consumerName = conf.getConsumerName() == null ? ConsumerName.generateRandomName() : conf.getConsumerName();
         this.subscribeFuture = subscribeFuture;
         this.listener = conf.getMessageListener();
         this.consumerEventListener = conf.getConsumerEventListener();
+        // TODO: 11/6/23 初始化 incomingMessages
         // Always use growable queue since items can exceed the advertised size
         this.incomingMessages = new GrowableArrayBlockingQueue<>();
         this.unAckedChunkedMessageIdSequenceMap =
@@ -121,6 +131,7 @@ public abstract class ConsumerBase<T> extends HandlerState implements Consumer<T
         this.pendingBatchReceives = Queues.newConcurrentLinkedQueue();
         this.schema = schema;
         this.interceptors = interceptors;
+        // TODO: 11/2/23 接收batch策略
         if (conf.getBatchReceivePolicy() != null) {
             BatchReceivePolicy userBatchReceivePolicy = conf.getBatchReceivePolicy();
             if (userBatchReceivePolicy.getMaxNumMessages() > this.maxReceiverQueueSize) {
@@ -151,22 +162,26 @@ public abstract class ConsumerBase<T> extends HandlerState implements Consumer<T
             this.batchReceivePolicy = BatchReceivePolicy.DEFAULT_POLICY;
         }
 
+        // TODO: 11/2/23 策略超时时间
         if (batchReceivePolicy.getTimeoutMs() > 0) {
             batchReceiveTimeout = client.timer().newTimeout(this::pendingBatchReceiveTask,
                     batchReceivePolicy.getTimeoutMs(), TimeUnit.MILLISECONDS);
         }
     }
 
+    // TODO: 11/3/23 消费者接收数据
     @Override
     public Message<T> receive() throws PulsarClientException {
         if (listener != null) {
             throw new PulsarClientException.InvalidConfigurationException(
                     "Cannot use receive() when a listener has been set");
         }
+        // TODO: 11/3/23 校验消费者状态
         verifyConsumerState();
         return internalReceive();
     }
 
+    // TODO: 11/3/23 异步接收数据 
     @Override
     public CompletableFuture<Message<T>> receiveAsync() {
         if (listener != null) {
@@ -181,8 +196,10 @@ public abstract class ConsumerBase<T> extends HandlerState implements Consumer<T
         return internalReceiveAsync();
     }
 
+    // TODO: 11/3/23 该方法分别由 ConsumerImpl， MultiTopicsConsumerImpl， ZeroQueueConsumerImpl 类进行实现
     protected abstract Message<T> internalReceive() throws PulsarClientException;
 
+    // TODO: 11/3/23 异步实现 
     protected abstract CompletableFuture<Message<T>> internalReceiveAsync();
 
     @Override
@@ -225,6 +242,7 @@ public abstract class ConsumerBase<T> extends HandlerState implements Consumer<T
     }
 
     protected CompletableFuture<Message<T>> nextPendingReceive() {
+        // TODO: 11/6/23 拉取一个等待任务
         CompletableFuture<Message<T>> receivedFuture;
         do {
             receivedFuture = pendingReceives.poll();
@@ -772,6 +790,7 @@ public abstract class ConsumerBase<T> extends HandlerState implements Consumer<T
 
     protected boolean enqueueMessageAndCheckBatchReceive(Message<T> message) {
         int messageSize = message.size();
+        // TODO: 11/6/23  true && 把消息放入到 incomingMessages 队列
         if (canEnqueueMessage(message) && incomingMessages.offer(message)) {
             // After we have enqueued the messages on `incomingMessages` queue, we cannot touch the message instance
             // anymore, since for pooled messages, this instance was possibly already been released and recycled.
@@ -955,12 +974,14 @@ public abstract class ConsumerBase<T> extends HandlerState implements Consumer<T
     }
 
     protected void tryTriggerListener() {
+        // TODO: 11/6/23 如果监听器被设置，则触发，注意，这里意味着拦截器先触发，监听器后触发
         if (listener != null) {
             triggerListener();
         }
     }
 
     private void triggerListener() {
+        // TODO: 11/6/23 在一隔离的线程中触发消息监听器的通知，避免在消息处理发生时阻塞网络线程 
         // The messages are added into the receiver queue by the internal pinned executor,
         // so need to use internal pinned executor to avoid race condition which message
         // might be added into the receiver queue but not able to read here.
@@ -969,6 +990,7 @@ public abstract class ConsumerBase<T> extends HandlerState implements Consumer<T
                 Message<T> msg;
                 do {
                     msg = internalReceive(0, TimeUnit.MILLISECONDS);
+                    // TODO: 11/6/23 当消息为null时，则结束循环（意味着本轮触发完成，消息队列已经被清空）
                     if (msg != null) {
                         // Trigger the notification on the message listener in a separate thread to avoid blocking the
                         // internal pinned executor thread while the message processing happens
@@ -1038,6 +1060,7 @@ public abstract class ConsumerBase<T> extends HandlerState implements Consumer<T
     }
 
     protected void decreaseIncomingMessageSize(final Message<?> message) {
+        // TODO: 11/3/23 把当前的msg size从 incoming msg size中减去
         INCOMING_MESSAGES_SIZE_UPDATER.addAndGet(this, -message.size());
     }
 

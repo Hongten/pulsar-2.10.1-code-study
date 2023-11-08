@@ -19,6 +19,7 @@
 package org.apache.pulsar.client.internal;
 
 /**
+ * 单例模式
  * This class loads the implementation for {@link PulsarClientImplementationBinding}
  * and allows you to decouple the API from the actual implementation.
  * <b>This class is internal to the Pulsar API implementation, and it is not part of the public API

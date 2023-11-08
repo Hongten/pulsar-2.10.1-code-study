@@ -113,19 +113,25 @@ import org.slf4j.LoggerFactory;
 
 // TODO: 2/22/23 最常用，最基础的消费者实现类，可以消费一个非分区topic或者一个分区
 public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandler.Connection {
+    // TODO: 11/2/23  最大未确认消息数
     private static final int MAX_REDELIVER_UNACKNOWLEDGED = 1000;
 
+    // TODO: 11/2/23 消费者ID 
     final long consumerId;
 
+    // TODO: 11/2/23 已传递给应用程序的消息数。每隔一段时间，这数字将发送 broker 通知我们准备（存储到消息队列中）获得更多的消息。（可用许可数） 
     // Number of messages that have delivered to the application. Every once in a while, this number will be sent to the
     // broker to notify that we are ready to get (and store in the incoming messages queue) more messages
     @SuppressWarnings("rawtypes")
     private static final AtomicIntegerFieldUpdater<ConsumerImpl> AVAILABLE_PERMITS_UPDATER = AtomicIntegerFieldUpdater
             .newUpdater(ConsumerImpl.class, "availablePermits");
+    // TODO: 11/2/23 这里的字段 'availablePermits'需要和 AVAILABLE_PERMITS_UPDATER配合使用
     @SuppressWarnings("unused")
     private volatile int availablePermits = 0;
 
+    // TODO: 11/2/23 上一次出队列消息
     protected volatile MessageId lastDequeuedMessageId = MessageId.earliest;
+    // TODO: 11/2/23 上一次在broker消息ID
     private volatile MessageId lastMessageIdInBroker = MessageId.earliest;
 
     private final long lookupDeadline;
@@ -136,21 +142,31 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
     @SuppressWarnings("unused")
     private volatile long subscribeDeadline = 0; // gets set on first successful connection
 
+    // TODO: 11/2/23 分区索引号
     private final int partitionIndex;
     private final boolean hasParentConsumer;
     private final boolean parentConsumerHasListener;
 
     private final int receiverQueueRefillThreshold;
 
+    // TODO: 11/2/23 未确认消息跟踪器， 每个消息接收后首先都要放入此容器里，然后其监控是否消费超时，
+    //  如果超时，则移除并重新通知 broker 推送过来，
+    //  而且还会跟踪消息未消费次数，如果超过次数，则会放入死信队列，然后发送系统设置的死信Topic ，
+    //  另外此消息会被系统确认“消费”（意味着不再推送重新消费了，要消息只能到死信 Topic 里取）。
     private final UnAckedMessageTracker unAckedMessageTracker;
+    // TODO: 11/2/23 确认组提交
     private final AcknowledgmentsGroupingTracker acknowledgmentsGroupingTracker;
     private final NegativeAcksTracker negativeAcksTracker;
 
     // todo 消费状态
     protected final ConsumerStatsRecorder stats;
+    // TODO: 11/2/23 消息优先级 
     private final int priorityLevel;
+    // TODO: 11/2/23 订阅模式 
     private final SubscriptionMode subscriptionMode;
+    // TODO: 11/2/23 批量消息ID 
     private volatile BatchMessageIdImpl startMessageId;
+    // TODO: 11/2/23 批量消息ID重置使用
 
     private volatile BatchMessageIdImpl seekMessageId;
     private final AtomicBoolean duringSeek;
@@ -158,33 +174,41 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
     private final BatchMessageIdImpl initialStartMessageId;
 
     private final long startMessageRollbackDurationInSec;
-
+    // TODO: 11/2/23 消费 Topic 末尾标志
     private volatile boolean hasReachedEndOfTopic;
-
+    // TODO: 11/2/23 消息解密器 
     private final MessageCrypto msgCrypto;
-
+    // TODO: 11/2/23 元数据信息 
     private final Map<String, String> metadata;
-
+    // TODO: 11/2/23 压缩读取
     private final boolean readCompacted;
     private final boolean resetIncludeHead;
 
+    // TODO: 11/2/23 订阅初始化Position
     private final SubscriptionInitialPosition subscriptionInitialPosition;
+    // TODO: 11/2/23 连接处理器 
     private final ConnectionHandler connectionHandler;
 
+    // TODO: 11/2/23 topic名称 
     private final TopicName topicName;
+    // TODO: 11/2/23 Topic名称无分区信息 
     private final String topicNameWithoutPartition;
-
+    // TODO: 11/2/23 死信消息容器 
     private final Map<MessageIdImpl, List<MessageImpl<T>>> possibleSendToDeadLetterTopicMessages;
-
+    // TODO: 11/2/23 死信队列策略 
     private final DeadLetterPolicy deadLetterPolicy;
 
+    // TODO: 11/2/23 死信消息生产者 
     private volatile CompletableFuture<Producer<byte[]>> deadLetterProducer;
 
+    // TODO: 11/2/23 重试队列生产者 
     private volatile Producer<T> retryLetterProducer;
     private final ReadWriteLock createProducerLock = new ReentrantReadWriteLock();
 
+    // TODO: 11/2/23 是否暂停 
     protected volatile boolean paused;
 
+    // TODO: 11/2/23 消息块缓存 
     protected ConcurrentOpenHashMap<String, ChunkedMessageCtx> chunkedMessagesMap =
             ConcurrentOpenHashMap.<String, ChunkedMessageCtx>newBuilder().build();
     private int pendingChunkedMessageCount = 0;
@@ -197,11 +221,15 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
     // it will be used to manage N outstanding chunked message buffers
     private final BlockingQueue<String> pendingChunkedMessageUuidQueue;
 
+    // TODO: 11/2/23 topic不存在是否需要创建 
     private final boolean createTopicIfDoesNotExist;
     private final boolean poolMessages;
 
     private final AtomicReference<ClientCnx> clientCnxUsedForConsumerRegistration = new AtomicReference<>();
     private final List<Throwable> previousExceptions = new CopyOnWriteArrayList<Throwable>();
+
+    // TODO: 11/2/23 ConsumerImpl 构造方法基本与 ProducerImpl 类似，
+    //  都是调用先调用父类构造方法，然后初始化基础数据和一些服务，最后开始连接 broker 或 Proxy，完成构造初始化。
     static <T> ConsumerImpl<T> newConsumerImpl(PulsarClientImpl client,
                                                String topic,
                                                ConsumerConfigurationData<T> conf,
@@ -230,12 +258,15 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                                                ConsumerInterceptors<T> interceptors,
                                                boolean createTopicIfDoesNotExist,
                                                long startMessageRollbackDurationInSec) {
+        // TODO: 11/2/23  默认为1000 的队列大小
         if (conf.getReceiverQueueSize() == 0) {
+            // TODO: 11/2/23 零队列的消费实现
             return new ZeroQueueConsumerImpl<>(client, topic, conf, executorProvider, partitionIndex, hasParentConsumer,
                     subscribeFuture,
                     startMessageId, schema, interceptors,
                     createTopicIfDoesNotExist);
         } else {
+            // TODO: 11/2/23 默认为1000 队列大小的消费实现
             return new ConsumerImpl<>(client, topic, conf, executorProvider, partitionIndex, hasParentConsumer,
                     parentConsumerHasListener,
                     subscribeFuture, startMessageId,
@@ -251,19 +282,29 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
            boolean createTopicIfDoesNotExist) {
         super(client, topic, conf, conf.getReceiverQueueSize(), executorProvider, subscribeFuture, schema,
                 interceptors);
+        // TODO: 11/2/23 消费者ID生成
         this.consumerId = client.newConsumerId();
+        // TODO: 11/2/23 订阅模式 
         this.subscriptionMode = conf.getSubscriptionMode();
+        // TODO: 11/2/23 起始消费id
         this.startMessageId = startMessageId != null ? new BatchMessageIdImpl((MessageIdImpl) startMessageId) : null;
         this.initialStartMessageId = this.startMessageId;
         this.startMessageRollbackDurationInSec = startMessageRollbackDurationInSec;
+        // TODO: 11/2/23 可用许可，设置为0 
         AVAILABLE_PERMITS_UPDATER.set(this, 0);
+        // TODO: 11/2/23 lookup超时时间 
         this.lookupDeadline = System.currentTimeMillis() + client.getConfiguration().getLookupTimeoutMs();
+        // TODO: 11/2/23 消费者 Topic 分区索引
         this.partitionIndex = partitionIndex;
         this.hasParentConsumer = hasParentConsumer;
+        // TODO: 11/2/23 从新拉取数据的判断标准 500 水位，即当消费者消费数据小于了这个水位，就可以重新拉取数据
         this.receiverQueueRefillThreshold = conf.getReceiverQueueSize() / 2;
         this.parentConsumerHasListener = parentConsumerHasListener;
+        // TODO: 11/2/23 优先级
         this.priorityLevel = conf.getPriorityLevel();
+        // TODO: 11/2/23 是否压缩 
         this.readCompacted = conf.isReadCompacted();
+        // TODO: 11/2/23 /设置订阅初始化时，游标开始位置 ，默认情况下，是从topic的末端消费
         this.subscriptionInitialPosition = conf.getSubscriptionInitialPosition();
         this.negativeAcksTracker = new NegativeAcksTracker(this, conf);
         this.resetIncludeHead = conf.isResetIncludeHead();
@@ -273,6 +314,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
         this.expireTimeOfIncompleteChunkedMessageMillis = conf.getExpireTimeOfIncompleteChunkedMessageMillis();
         this.autoAckOldestChunkedMessageOnQueueFull = conf.isAutoAckOldestChunkedMessageOnQueueFull();
         this.poolMessages = conf.isPoolMessages();
+        // TODO: 11/2/23 是否开始的时候暂停消费 
         this.paused = conf.isStartPaused();
 
         // todo 如果客户端设置了 .statsInterval(20, TimeUnit.MICROSECONDS)
@@ -286,7 +328,9 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
 
         duringSeek = new AtomicBoolean(false);
 
+        // TODO: 11/2/23 默认为0 ， 消息确认超时时间
         if (conf.getAckTimeoutMillis() != 0) {
+            // TODO: 11/2/23 时间单位 
             if (conf.getAckTimeoutRedeliveryBackoff() != null) {
                 this.unAckedMessageTracker = new UnAckedMessageRedeliveryTracker(client, this, conf);
             } else {
@@ -296,6 +340,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             this.unAckedMessageTracker = UnAckedMessageTracker.UNACKED_MESSAGE_TRACKER_DISABLED;
         }
 
+        // TODO: 11/2/23 如果还没创建，则创建消息解密器 
         // Create msgCrypto if not created already
         if (conf.getCryptoKeyReader() != null) {
             if (conf.getMessageCrypto() != null) {
@@ -317,12 +362,14 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             this.msgCrypto = null;
         }
 
+        // TODO: 11/2/23 初始化属性或设置属性为不可变更
         if (conf.getProperties().isEmpty()) {
             metadata = Collections.emptyMap();
         } else {
             metadata = Collections.unmodifiableMap(new HashMap<>(conf.getProperties()));
         }
 
+        // TODO: 11/2/23 连接处理器，这里跟 Producer 一样 
         this.connectionHandler = new ConnectionHandler(this,
                         new BackoffBuilder()
                                 .setInitialTime(client.getConfiguration().getInitialBackoffIntervalNanos(),
@@ -332,17 +379,32 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                                 .create(),
                 this);
 
+        // TODO: 11/2/23  读取 Topic 信息，判定 Topic 是持久化或非持久化的
         this.topicName = TopicName.get(topic);
+        // TODO: 11/2/23 持久化topic
         if (this.topicName.isPersistent()) {
             this.acknowledgmentsGroupingTracker =
                 new PersistentAcknowledgmentsGroupingTracker(this, conf, client.eventLoopGroup());
         } else {
+            // TODO: 11/2/23 非持久化topic
             this.acknowledgmentsGroupingTracker =
                 NonPersistentAcknowledgmentGroupingTracker.of();
         }
 
+        // TODO: 11/2/23 私信队列策略
         if (conf.getDeadLetterPolicy() != null) {
             possibleSendToDeadLetterTopicMessages = new ConcurrentHashMap<>();
+            // TODO: 11/2/23 死信队列topic有提供
+            /**
+             * 这里是否不是这样优化更好呢?
+             * this.deadLetterPolicy = DeadLetterPolicy.builder()
+             * .maxRedeliverCount(conf.getDeadLetterPolicy().getMaxRedeliverCount())
+             * .deadLetterTopic(StringUtils.isNotBlank(conf.getDeadLetterPolicy().getDeadLetterTopic()) ?
+             *  conf.getDeadLetterPolicy().getDeadLetterTopic() :
+             *  String.format("%s-%s" + RetryMessageUtil.DLQ_GROUP_TOPIC_SUFFIX,topic, subscription))
+             * .build();
+             *
+             */
             if (StringUtils.isNotBlank(conf.getDeadLetterPolicy().getDeadLetterTopic())) {
                 this.deadLetterPolicy = DeadLetterPolicy.builder()
                         .maxRedeliverCount(conf.getDeadLetterPolicy().getMaxRedeliverCount())
@@ -356,6 +418,12 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                         .build();
             }
 
+            /**
+             * 这里是否不是这样优化更好呢?
+             * this.deadLetterPolicy.setRetryLetterTopic(StringUtils.isNotBlank(conf.getDeadLetterPolicy().getRetryLetterTopic()) ?
+             * conf.getDeadLetterPolicy().getRetryLetterTopic() :
+             * String.format( "%s-%s" + RetryMessageUtil.RETRY_GROUP_TOPIC_SUFFIX, topic, subscription));
+             */
             if (StringUtils.isNotBlank(conf.getDeadLetterPolicy().getRetryLetterTopic())) {
                 this.deadLetterPolicy.setRetryLetterTopic(conf.getDeadLetterPolicy().getRetryLetterTopic());
             } else {
@@ -374,8 +442,12 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             possibleSendToDeadLetterTopicMessages = null;
         }
 
+        // TODO: 11/2/23 topic的full name
         topicNameWithoutPartition = topicName.getPartitionedTopicName();
 
+        // TODO: 11/2/23  连接broker
+        // TODO: 11/2/23 这里跟 Producer 构造方法一样，发起与 broker 连接，直到获取到连接结果。
+        //  这里唯一不同的是就是对 Connection 两个方法的实现
         grabCnx();
     }
 
@@ -424,12 +496,16 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
         return unsubscribeFuture;
     }
 
+    // TODO: 11/3/23 接收broker端发过来的消息
     @Override
     protected Message<T> internalReceive() throws PulsarClientException {
         Message<T> message;
         try {
+            // TODO: 11/3/23 获取队列的头部消息
             message = incomingMessages.take();
+            // TODO: 11/3/23 消息处理
             messageProcessed(message);
+            // TODO: 11/6/23 如果消息的ConsumerEpoch不合法，则获取skip掉，获取下一条消息
             if (!isValidConsumerEpoch(message)) {
                 return internalReceive();
             }
@@ -470,13 +546,18 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
     @Override
     protected Message<T> internalReceive(long timeout, TimeUnit unit) throws PulsarClientException {
         Message<T> message;
+        // TODO: 11/6/23 系统时间
         long callTime = System.nanoTime();
         try {
+            // TODO: 11/6/23 从 incomingMessages 获取头部msg
             message = incomingMessages.poll(timeout, unit);
+            // TODO: 11/6/23 消息为null，说明 incomingMessages 为空
             if (message == null) {
                 return null;
             }
+            // TODO: 11/6/23 消息处理
             messageProcessed(message);
+            // TODO: 11/6/23 consumerEpoch是否合法
             if (!isValidConsumerEpoch(message)) {
                 long executionTime = System.nanoTime() - callTime;
                 long timeoutInNanos = unit.toNanos(timeout);
@@ -549,21 +630,24 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                                                     Map<String, Long> properties,
                                                     TransactionImpl txn) {
         checkArgument(messageId instanceof MessageIdImpl);
+        // TODO: 11/6/23 检查客户端状态
         if (getState() != State.Ready && getState() != State.Connecting) {
             stats.incrementNumAcksFailed();
             PulsarClientException exception = new PulsarClientException("Consumer not ready. State: " + getState());
-            if (AckType.Individual.equals(ackType)) {
+            if (AckType.Individual.equals(ackType)) { // TODO: 11/6/23 单个消息确认
                 onAcknowledge(messageId, exception);
-            } else if (AckType.Cumulative.equals(ackType)) {
+            } else if (AckType.Cumulative.equals(ackType)) { // TODO: 11/6/23 累积消息确认
                 onAcknowledgeCumulative(messageId, exception);
             }
             return FutureUtil.failedFuture(exception);
         }
 
+        // TODO: 11/6/23 开启事务
         if (txn != null) {
             return doTransactionAcknowledgeForResponse(messageId, ackType, null, properties,
                     new TxnID(txn.getTxnIdMostBits(), txn.getTxnIdLeastBits()));
         }
+        // TODO: 11/6/23 没开事务
         return acknowledgmentsGroupingTracker.addAcknowledgment((MessageIdImpl) messageId, ackType, properties);
     }
 
@@ -763,8 +847,10 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
 
     @Override
     public void connectionOpened(final ClientCnx cnx) {
+        // TODO: 11/2/23 当消费者连接到了broker后，连接就打开 
         previousExceptions.clear();
 
+        // TODO: 11/2/23 状态检测
         if (getState() == State.Closing || getState() == State.Closed) {
             setState(State.Closed);
             closeConsumerTasks();
@@ -777,6 +863,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
         log.info("[{}][{}] Subscribing to topic on cnx {}, consumerId {}",
                 topic, subscription, cnx.ctx().channel(), consumerId);
 
+        // TODO: 11/2/23 request id获取 
         long requestId = client.newRequestId();
         if (duringSeek.get()) {
             acknowledgmentsGroupingTracker.flushAndClean();
@@ -795,23 +882,28 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             }
         }
 
+        // TODO: 11/2/23 是否为持久化订阅模式
         boolean isDurable = subscriptionMode == SubscriptionMode.Durable;
         final MessageIdData startMessageIdData;
 
         // For regular durable subscriptions, the message id from where to restart will be determined by the broker.
         // For non-durable we are going to restart from the next entry.
         if (!isDurable && startMessageId != null) {
+            // TODO: 11/2/23 对于非持久化订阅，重启时直接取下一消息实体 
             startMessageIdData = new MessageIdData()
                     .setLedgerId(startMessageId.getLedgerId())
                     .setEntryId(startMessageId.getEntryId())
                     .setBatchIndex(startMessageId.getBatchIndex());
         } else {
+            // TODO: 11/2/23  对于通常的持久化订阅，重启时，broker 决定起始消息ID。
             startMessageIdData = null;
         }
 
+        // TODO: 11/2/23 schema信息
         SchemaInfo si = schema.getSchemaInfo();
         if (si != null && (SchemaType.BYTES == si.getType() || SchemaType.NONE == si.getType())) {
             // don't set schema for Schema.BYTES
+            // TODO: 11/2/23 为了兼容，当 Schema 类型为 Schema.BYTES 时，SchemaInfo 为 null。
             si = null;
         }
         // startMessageRollbackDurationInSec should be consider only once when consumer connects to first time
@@ -821,7 +913,9 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
 
         // synchronized this, because redeliverUnAckMessage eliminate the epoch inconsistency between them
         synchronized (this) {
+            // TODO: 11/2/23 原子设置 cnx
             setClientCnx(cnx);
+            // TODO: 11/2/23 创建新订阅命令
             ByteBuf request = Commands.newSubscribe(topic, subscription, consumerId, requestId, getSubType(),
                     priorityLevel, consumerName, isDurable, startMessageIdData, metadata, readCompacted,
                     conf.isReplicateSubscriptionState(),
@@ -829,12 +923,18 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                     startMessageRollbackDuration, si, createTopicIfDoesNotExist, conf.getKeySharedPolicy(),
                     // Use the current epoch to subscribe.
                     conf.getSubscriptionProperties(), CONSUMER_EPOCH.get(this));
+            // todo 每次创建订阅命令的时候，就会在客户端生成一个CONSUMER_EPOCH，
+            //  当消费者接收到了broker端发过来的数据时，就会对这个CONSUMER_EPOCH 对比
 
+            // TODO: 11/2/23 发送订阅请求
             cnx.sendRequestWithId(request, requestId).thenRun(() -> {
                 synchronized (ConsumerImpl.this) {
+                    // TODO: 11/2/23 尝试把cnx状态转变成 Ready 状态
                     if (changeToReadyState()) {
+                        // TODO: 11/2/23 转换成功，则把可用许可设置为0
                         consumerIsReconnectedToBroker(cnx, currentSize);
                     } else {
+                        // TODO: 11/2/23 如果重连的时候，转换失败，设置消费者状态为 Closed 状态，并关闭连接确保 broker 清理消费者（资源）
                         // Consumer was closed while reconnecting, close the connection to make sure the broker
                         // drops the consumer on its side
                         setState(State.Closed);
@@ -844,16 +944,21 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                         return;
                     }
                 }
-
+                // TODO: 11/2/23 重置重连超时时间
                 resetBackoff();
 
+                // TODO: 11/2/23 尝试把 subscribeFuture 设置 complete 状态，如果成功，则认为是第一次连接
                 boolean firstTimeConnect = subscribeFuture.complete(this);
                 // if the consumer is not partitioned or is re-connected and is partitioned, we send the flow
                 // command to receive messages.
+                // TODO: 11/2/23 如果消费者（订阅的Topic）是无分区 或 是分区但已重连过，并且接收队列不为 0，
+                //  发送流控命令到 broker，（通知 broker 可以推送消息到消费者了）
                 if (!(firstTimeConnect && hasParentConsumer) && conf.getReceiverQueueSize() != 0) {
+                    // TODO: 11/2/23   receiverQueueSize = 1000
                     increaseAvailablePermits(cnx, conf.getReceiverQueueSize());
                 }
             }).exceptionally((e) -> {
+                // TODO: 11/2/23 如果出现异常，需要把Cnx从客户端移除
                 deregisterFromClientCnx();
                 if (getState() == State.Closing || getState() == State.Closed) {
                     // Consumer was closed while reconnecting, close the connection to make sure the broker
@@ -867,6 +972,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                 if (e.getCause() instanceof PulsarClientException
                         && PulsarClientException.isRetriableError(e.getCause())
                         && System.currentTimeMillis() < SUBSCRIBE_DEADLINE_UPDATER.get(ConsumerImpl.this)) {
+                    // TODO: 11/2/23 尝试重连broker
                     reconnectLater(e.getCause());
                 } else if (!subscribeFuture.isDone()) {
                     // unable to create new consumer, fail operation
@@ -887,9 +993,11 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                     setState(State.Failed);
                     closeConsumerTasks();
                     client.cleanupConsumer(this);
+                    // TODO: 11/2/23 topic不存在异常处理
                     log.warn("[{}][{}] Closed consumer because topic does not exist anymore {}",
                             topic, subscription, cnx.channel().remoteAddress());
                 } else {
+                    // TODO: 11/2/23 继续重连broker
                     // consumer was subscribed and connected but we got some error, keep trying
                     reconnectLater(e.getCause());
                 }
@@ -901,46 +1009,58 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
     protected void consumerIsReconnectedToBroker(ClientCnx cnx, int currentQueueSize) {
         log.info("[{}][{}] Subscribed to topic on {} -- consumer: {}", topic, subscription,
                 cnx.channel().remoteAddress(), consumerId);
-
+        // TODO: 11/2/23 可用许可设置为0
         AVAILABLE_PERMITS_UPDATER.set(this, 0);
     }
 
     /**
+     * todo 清除内部接收队列并返回队列中第一条消息的消息ID，该消息是应用尚未看到（处理）的
      * Clear the internal receiver queue and returns the message id of what was the 1st message in the queue that was
      * not seen by the application.
      */
     private BatchMessageIdImpl clearReceiverQueue() {
         List<Message<?>> currentMessageQueue = new ArrayList<>(incomingMessages.size());
+        // TODO: 11/3/23 把 incomingMessages 里面的所有message都拿出来放入到 currentMessageQueue， 
+        //  把阻塞队列数据全部按顺序放入当前消息队列，就是ArrayList容器
         incomingMessages.drainTo(currentMessageQueue);
+        // TODO: 11/3/23 重置 INCOMING_MESSAGES_SIZE_UPDATER = 0
         resetIncomingMessageSize();
 
         if (duringSeek.compareAndSet(true, false)) {
             return seekMessageId;
+            // TODO: 11/3/23 如果订阅模式为持久化，就返回  startMessageId
         } else if (subscriptionMode == SubscriptionMode.Durable) {
             return startMessageId;
         }
 
+        // TODO: 11/3/23 如果不为空 
         if (!currentMessageQueue.isEmpty()) {
+            // TODO: 11/3/23 取第一条消息
             MessageIdImpl nextMessageInQueue = (MessageIdImpl) currentMessageQueue.get(0).getMessageId();
             BatchMessageIdImpl previousMessage;
             if (nextMessageInQueue instanceof BatchMessageIdImpl) {
+                // TODO: 11/3/23 获取前一个消息在当前批量消息中
                 // Get on the previous message within the current batch
                 previousMessage = new BatchMessageIdImpl(nextMessageInQueue.getLedgerId(),
                         nextMessageInQueue.getEntryId(), nextMessageInQueue.getPartitionIndex(),
                         ((BatchMessageIdImpl) nextMessageInQueue).getBatchIndex() - 1);
             } else {
+                // TODO: 11/3/23 获取前一个消息在当前消息实体中
                 // Get on previous message in previous entry
                 previousMessage = new BatchMessageIdImpl(nextMessageInQueue.getLedgerId(),
                         nextMessageInQueue.getEntryId() - 1, nextMessageInQueue.getPartitionIndex(), -1);
             }
+            // TODO: 11/3/23 把 currentMessageQueue 中的所有消息都释放
             // release messages if they are pooled messages
             currentMessageQueue.forEach(Message::release);
             return previousMessage;
         } else if (!lastDequeuedMessageId.equals(MessageId.earliest)) {
+            // TODO: 11/3/23 如果队列为空，最后出队消息不等于最早消息ID，则使用最后出队消息作为起始消息
             // If the queue was empty we need to restart from the message just after the last one that has been dequeued
             // in the past
             return new BatchMessageIdImpl((MessageIdImpl) lastDequeuedMessageId);
         } else {
+            // TODO: 11/3/23 如果没消息接收过或已经被消费者处理，下一个消息还是用起始消息
             // No message was received or dequeued by this consumer. Next message would still be the startMessageId
             return startMessageId;
         }
@@ -955,6 +1075,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                 log.debug("[{}] [{}] Adding {} additional permits", topic, subscription, numMessages);
             }
             if (log.isDebugEnabled()) {
+                // TODO: 11/3/23 发送流控命令到 broker
                 cnx.ctx().writeAndFlush(Commands.newFlow(consumerId, numMessages))
                         .addListener(writeFuture -> {
                             if (!writeFuture.isSuccess()) {
@@ -1174,6 +1295,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             if (hasNextPendingReceive()) {
                 notifyPendingReceivedCallback(message, null);
             } else if (enqueueMessageAndCheckBatchReceive(message) && hasPendingBatchReceive()) {
+                // TODO: 11/6/23 批量消息
                 notifyPendingBatchReceivedCallBack();
             }
         });
@@ -1214,8 +1336,10 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
         tryTriggerListener();
     }
 
+    // TODO: 11/6/23 处理从broker端接收到的msg 
     void messageReceived(CommandMessage cmdMessage, ByteBuf headersAndPayload, ClientCnx cnx) {
         List<Long> ackSet = Collections.emptyList();
+        // TODO: 11/6/23 检查此消息是否已确认，如果已确认，则忽略（丢弃）
         if (cmdMessage.getAckSetsCount() > 0) {
             ackSet = new ArrayList<>(cmdMessage.getAckSetsCount());
             for (int i = 0; i < cmdMessage.getAckSetsCount(); i++) {
@@ -1223,7 +1347,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             }
         }
         int redeliveryCount = cmdMessage.getRedeliveryCount();
-        MessageIdData messageId = cmdMessage.getMessageId();
+        MessageIdData messageId = cmdMessage.getMessageId(); // TODO: 11/6/23 [LedgerId, EntryId]
         long consumerEpoch = DEFAULT_CONSUMER_EPOCH;
         // if broker send messages to client with consumerEpoch, we should set consumerEpoch to message
         if (cmdMessage.hasConsumerEpoch()) {
@@ -1234,7 +1358,9 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                     messageId.getEntryId());
         }
 
+        // TODO: 11/6/23 进行消息校验，是否已损坏
         if (!verifyChecksum(headersAndPayload, messageId)) {
+            // TODO: 11/6/23 消息校验失败，则丢弃这个消息，并通知 broker 重发， error类型：ChecksumMismatch
             // discard message with checksum error
             discardCorruptedMessage(messageId, cnx, ValidationError.ChecksumMismatch);
             return;
@@ -1243,6 +1369,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
         BrokerEntryMetadata brokerEntryMetadata;
         MessageMetadata msgMetadata;
         try {
+            // TODO: 11/6/23 尝试解析消息
             brokerEntryMetadata = Commands.parseBrokerEntryMetadataIfExist(headersAndPayload);
             msgMetadata = Commands.parseMessageMetadata(headersAndPayload);
         } catch (Throwable t) {
@@ -1250,11 +1377,16 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             return;
         }
 
+        // TODO: 11/6/23 消息条数
         final int numMessages = msgMetadata.getNumMessagesInBatch();
+        // TODO: 11/6/23 消息块大小 ，如果没有分块发送，则块大小为0， 否则，块大小大于1（1， >=2， 3， 4）
         final int numChunks = msgMetadata.hasNumChunksFromMsg() ? msgMetadata.getNumChunksFromMsg() : 0;
+        // TODO: 11/6/23 是否为分块发送消息 , 分块大小大于1， 并且定于类型不是Shared的类型
         final boolean isChunkedMessage = numChunks > 1 && conf.getSubscriptionType() != SubscriptionType.Shared;
 
+        // TODO: 11/6/23 根据ledgerId， entryId和分区id构建MessageIdImpl实例
         MessageIdImpl msgId = new MessageIdImpl(messageId.getLedgerId(), messageId.getEntryId(), getPartitionIndex());
+        // TODO: 11/6/23 消息去重处理
         if (acknowledgmentsGroupingTracker.isDuplicate(msgId)) {
             if (log.isDebugEnabled()) {
                 log.debug("[{}] [{}] Ignoring message as it was already being acked earlier by same consumer {}/{}",
@@ -1265,21 +1397,26 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             return;
         }
 
+        // TODO: 11/6/23 如果需要，解密消息
         ByteBuf decryptedPayload = decryptPayloadIfNeeded(messageId, redeliveryCount, msgMetadata, headersAndPayload,
                 cnx);
 
+        // TODO: 11/6/23 消息是否已解密
         boolean isMessageUndecryptable = isMessageUndecryptable(msgMetadata);
 
+        // TODO: 11/6/23 消息已丢弃或 CryptoKeyReader 接口没有实现
         if (decryptedPayload == null) {
             // Message was discarded or CryptoKeyReader isn't implemented
             return;
         }
 
+        // TODO: 11/6/23 解压已解密的消息，并且释放已解密的字节缓存 
         // uncompress decryptedPayload and release decryptedPayload-ByteBuf
         ByteBuf uncompressedPayload = (isMessageUndecryptable || isChunkedMessage) ? decryptedPayload.retain()
                 : uncompressPayloadIfNeeded(messageId, msgMetadata, decryptedPayload, cnx, true);
         decryptedPayload.release();
         if (uncompressedPayload == null) {
+            // TODO: 11/6/23 一旦消息解压错误，则丢弃
             // Message was discarded on decompression error
             return;
         }
@@ -1291,17 +1428,21 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             return;
         }
 
+        // TODO: 11/6/23 如果消息没有解密，它不能解析成一个批量消息，故增加 加密上下文到消息，返回未加密的消息体
         // if message is not decryptable then it can't be parsed as a batch-message. so, add EncyrptionCtx to message
         // and return undecrypted payload
         if (isMessageUndecryptable || (numMessages == 1 && !msgMetadata.hasNumMessagesInBatch())) {
 
+            // TODO: 11/6/23 如果是分块消息
             // right now, chunked messages are only supported by non-shared subscription
             if (isChunkedMessage) {
+                // TODO: 11/6/23 处理分块消息，对消息进行解压缩
                 uncompressedPayload = processMessageChunk(uncompressedPayload, msgMetadata, msgId, messageId, cnx);
                 if (uncompressedPayload == null) {
                     return;
                 }
 
+                // TODO: 11/6/23 最后一个分块 消息接收后，即所有的分块消息都被接收
                 // last chunk received: so, stitch chunked-messages and clear up chunkedMsgBuffer
                 if (log.isDebugEnabled()) {
                     log.debug("Chunked message completed chunkId {}, total-chunks {}, msgId {} sequenceId {}",
@@ -1309,12 +1450,15 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                             msgMetadata.getSequenceId());
                 }
 
+                // TODO: 11/6/23 从 chunkedMessagesMap 里面移除 msgUUID
                 // remove buffer from the map, set the chunk message id
                 ChunkedMessageCtx chunkedMsgCtx = chunkedMessagesMap.remove(msgMetadata.getUuid());
                 if (chunkedMsgCtx.chunkedMessageIds.length > 0) {
+                    // TODO: 11/6/23  把所有的消息块组装起来，创建一个ChunkMessageIdImpl实例
                     msgId = new ChunkMessageIdImpl(chunkedMsgCtx.chunkedMessageIds[0],
                             chunkedMsgCtx.chunkedMessageIds[chunkedMsgCtx.chunkedMessageIds.length - 1]);
                 }
+                // TODO: 11/6/23 把 组装好的消息放入到 unAckedChunkedMessageIdSequenceMap
                 // add chunked messageId to unack-message tracker, and reduce pending-chunked-message count
                 unAckedChunkedMessageIdSequenceMap.put(msgId, chunkedMsgCtx.chunkedMessageIds);
                 pendingChunkedMessageCount--;
@@ -1333,11 +1477,13 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                 return;
             }
 
+            // TODO: 11/6/23 构建一个消息
             final MessageImpl<T> message =
                     newMessage(msgId, brokerEntryMetadata, msgMetadata, uncompressedPayload,
                             schema, redeliveryCount, consumerEpoch);
             uncompressedPayload.release();
 
+            // TODO: 11/6/23 如果满足死信队列的要求，把消息放入到死信队列
             if (deadLetterPolicy != null && possibleSendToDeadLetterTopicMessages != null
                     && redeliveryCount >= deadLetterPolicy.getMaxRedeliverCount()) {
                 possibleSendToDeadLetterTopicMessages.put((MessageIdImpl) message.getMessageId(),
@@ -1345,6 +1491,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             }
             executeNotifyCallback(message);
         } else {
+            // TODO: 11/6/23 处理批量消息入队列，批处理解压缩所有的消息
             // handle batch message enqueuing; uncompressed payload has all messages in batch
             receiveIndividualMessagesFromBatch(brokerEntryMetadata, msgMetadata, redeliveryCount, ackSet,
                     uncompressedPayload, messageId, cnx, consumerEpoch);
@@ -1357,12 +1504,13 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
 
     private ByteBuf processMessageChunk(ByteBuf compressedPayload, MessageMetadata msgMetadata, MessageIdImpl msgId,
             MessageIdData messageId, ClientCnx cnx) {
+        // TODO: 11/6/23 分块消息处理
 
         // Lazy task scheduling to expire incomplete chunk message
         if (!expireChunkMessageTaskScheduled && expireTimeOfIncompleteChunkedMessageMillis > 0) {
             internalPinnedExecutor
                     .scheduleAtFixedRate(catchingAndLoggingThrowables(this::removeExpireIncompleteChunkedMessages),
-                            expireTimeOfIncompleteChunkedMessageMillis, expireTimeOfIncompleteChunkedMessageMillis,
+                            expireTimeOfIncompleteChunkedMessageMillis, expireTimeOfIncompleteChunkedMessageMillis, // 默认1 min
                             TimeUnit.MILLISECONDS);
             expireChunkMessageTaskScheduled = true;
         }
@@ -1374,6 +1522,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             chunkedMessagesMap.computeIfAbsent(msgMetadata.getUuid(),
                     (key) -> ChunkedMessageCtx.get(totalChunks, chunkedMsgBuffer));
             pendingChunkedMessageCount++;
+            // TODO: 11/6/23 maxPendingChunkedMessage默认为10， 这里好像有问题：如果一个消息块大小超过了10，那么这个消息就一直组装不成一个消息！！！
             if (maxPendingChunkedMessage > 0 && pendingChunkedMessageCount > maxPendingChunkedMessage) {
                 removeOldestPendingChunkedMessage();
             }
@@ -1381,6 +1530,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
         }
 
         ChunkedMessageCtx chunkedMsgCtx = chunkedMessagesMap.get(msgMetadata.getUuid());
+        // TODO: 11/6/23  扔掉乱序的msg
         // discard message if chunk is out-of-order
         if (chunkedMsgCtx == null || chunkedMsgCtx.chunkedMsgBuffer == null
                 || msgMetadata.getChunkId() != (chunkedMsgCtx.lastChunkedMessageId + 1)
@@ -1422,6 +1572,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
 
         compressedPayload.release();
         compressedPayload = chunkedMsgCtx.chunkedMsgBuffer;
+        // TODO: 11/6/23 会对msg进行解压缩
         ByteBuf uncompressedPayload = uncompressPayloadIfNeeded(messageId, msgMetadata, compressedPayload, cnx, false);
         compressedPayload.release();
         return uncompressedPayload;
@@ -1448,12 +1599,14 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             return;
         }
 
+        // TODO: 11/6/23 msg 为空处理异常
         if (message == null) {
             IllegalStateException e = new IllegalStateException("received message can't be null");
             internalPinnedExecutor.execute(() -> receivedFuture.completeExceptionally(e));
             return;
         }
 
+        // TODO: 11/6/23 如果队列大小设置为0，将立即调用拦截器和完成接收回调， 默认为1000
         if (conf.getReceiverQueueSize() == 0) {
             // call interceptor and complete received callback
             trackMessage(message);
@@ -1461,6 +1614,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             return;
         }
 
+        // TODO: 11/6/23 记录应用处理了一条消息的事件。并尝试发送一个 Flow 命令通知 broker 可以推送消息了
         // increase permits for available message-queue
         messageProcessed(message);
         // call interceptor and complete received callback
@@ -1468,8 +1622,10 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
     }
 
     private void interceptAndComplete(final Message<T> message, final CompletableFuture<Message<T>> receivedFuture) {
+        // TODO: 11/6/23 调用拦截器
         // call proper interceptor
         final Message<T> interceptMessage = beforeConsume(message);
+        // TODO: 11/6/23 设置完成标志
         // return message to receivedCallback
         completePendingReceive(receivedFuture, interceptMessage);
     }
@@ -1479,6 +1635,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                                             MessageIdData messageId, ClientCnx cnx, long consumerEpoch) {
         int batchSize = msgMetadata.getNumMessagesInBatch();
 
+        // TODO: 11/6/23 创建一个 MessageIdImpl 实例
         // create ack tracker for entry aka batch
         MessageIdImpl batchMessage = new MessageIdImpl(messageId.getLedgerId(), messageId.getEntryId(),
                 getPartitionIndex());
@@ -1497,6 +1654,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
         int skippedMessages = 0;
         try {
             for (int i = 0; i < batchSize; ++i) {
+                // TODO: 11/6/23 构建 MessageImpl 实例
                 final MessageImpl<T> message = newSingleMessage(i, batchSize, brokerEntryMetadata, msgMetadata,
                         singleMessageMetadata, uncompressedPayload, batchMessage, schema, true,
                         ackBitSet, acker, redeliveryCount, consumerEpoch);
@@ -1504,6 +1662,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                     skippedMessages++;
                     continue;
                 }
+                // TODO: 11/6/23 如果死信队列不为空，则把消息放入里面
                 if (possibleToDeadLetter != null) {
                     possibleToDeadLetter.add(message);
                 }
@@ -1513,6 +1672,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                 ackBitSet.recycle();
             }
         } catch (IllegalStateException e) {
+            // TODO: 11/6/23 不能从batch里面获取msg移除处理
             log.warn("[{}] [{}] unable to obtain message in batch", subscription, consumerName, e);
             discardCorruptedMessage(messageId, cnx, ValidationError.BatchDeSerializeError);
         }
@@ -1552,20 +1712,27 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
      */
     @Override
     protected synchronized void messageProcessed(Message<?> msg) {
+        // TODO: 11/3/23 消费者客户端信息
         ClientCnx currentCnx = cnx();
+        // TODO: 11/3/23 消息携带的信息
         ClientCnx msgCnx = ((MessageImpl<?>) msg).getCnx();
+        // TODO: 11/3/23 更新 lastDequeuedMessageId 为该msg的Id
         lastDequeuedMessageId = msg.getMessageId();
 
         if (msgCnx != currentCnx) {
             // The processed message did belong to the old queue that was cleared after reconnection.
         } else {
             if (listener == null && !parentConsumerHasListener) {
+                // TODO: 11/3/23 增加可用许可 +1
                 increaseAvailablePermits(currentCnx);
             }
+            // TODO: 11/3/23 记录消息的状态 ,主要记录msgNum，msgSize
             stats.updateNumMsgsReceived(msg);
 
+            // TODO: 11/3/23 把消息放入跟踪未确认消息记录器
             trackMessage(msg);
         }
+        // TODO: 11/3/23 因为这个消息被处理，应该把incoming msg size 减去 当前msg的数量 
         decreaseIncomingMessageSize(msg);
     }
 
@@ -1580,8 +1747,10 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
     }
 
     protected void trackMessage(MessageId messageId, int redeliveryCount) {
+        // TODO: 11/3/23  ackTimeout默认应该是30s，
         if (conf.getAckTimeoutMillis() > 0 && messageId instanceof MessageIdImpl) {
             MessageIdImpl id = (MessageIdImpl) messageId;
+            // TODO: 11/3/23  对于批量消息实现，不需要每个消息都放入跟踪器
             if (id instanceof BatchMessageIdImpl) {
                 // do not add each item in batch message into tracker
                 id = new MessageIdImpl(id.getLedgerId(), id.getEntryId(), getPartitionIndex());
@@ -1591,6 +1760,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                 // we should no longer track this message, TopicsConsumer will take care from now onwards
                 unAckedMessageTracker.remove(id);
             } else {
+                // TODO: 11/3/23 没有ACK的消息放入 消息跟踪器
                 unAckedMessageTracker.add(id, redeliveryCount);
             }
         }
@@ -1609,13 +1779,18 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
     }
 
     protected void increaseAvailablePermits(ClientCnx currentCnx, int delta) {
+        // TODO: 11/2/23 delta 
         int available = AVAILABLE_PERMITS_UPDATER.addAndGet(this, delta);
 
+        // TODO: 11/2/23  receiverQueueRefillThreshold=500 默认。
         while (available >= receiverQueueRefillThreshold && !paused) {
+            // TODO: 11/2/23 如果可用许可里面就有 available值，则把 AVAILABLE_PERMITS_UPDATER 设置为0
             if (AVAILABLE_PERMITS_UPDATER.compareAndSet(this, available, 0)) {
+                // TODO: 11/2/23 向broker发起拉数据的请求， 发送流控命令到 broker
                 sendFlowPermitsToBroker(currentCnx, available);
                 break;
             } else {
+                // TODO: 11/2/23 全部拿完可用许可
                 available = AVAILABLE_PERMITS_UPDATER.get(this);
             }
         }
@@ -1643,6 +1818,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
         return connectionHandler.lastConnectionClosedTimestamp;
     }
 
+    // TODO: 11/6/23 如果需要，则解密加密的消息
     private ByteBuf decryptPayloadIfNeeded(MessageIdData messageId, int redeliveryCount, MessageMetadata msgMetadata,
                                            ByteBuf payload, ClientCnx currentCnx) {
 
@@ -1650,6 +1826,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             return payload.retain();
         }
 
+        // TODO: 11/6/23 如果密钥读取器没有配置，按照系统配置进行处理
         // If KeyReader is not configured throw exception based on config param
         if (conf.getCryptoKeyReader() == null) {
             switch (conf.getCryptoFailureAction()) {
@@ -1679,26 +1856,29 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
         int maxDecryptedSize = msgCrypto.getMaxOutputSize(payload.readableBytes());
         ByteBuf decryptedData = PulsarByteBufAllocator.DEFAULT.buffer(maxDecryptedSize);
         ByteBuffer nioDecryptedData = decryptedData.nioBuffer(0, maxDecryptedSize);
+        // TODO: 11/6/23 解密消息 
         if (msgCrypto.decrypt(() -> msgMetadata, payload.nioBuffer(), nioDecryptedData, conf.getCryptoKeyReader())) {
             decryptedData.writerIndex(nioDecryptedData.limit());
+            // TODO: 11/6/23 如果解密成功，直接返回
             return decryptedData;
         }
 
         decryptedData.release();
 
+        // TODO: 11/6/23 解密失败时，系统根据配置处理
         switch (conf.getCryptoFailureAction()) {
-            case CONSUME:
+            case CONSUME: // 注意，即使配置（CryptoFailureAction）为消费选项，批量消息也会解密失败，这里往下传。
                 // Note, batch message will fail to consume even if config is set to consume
                 log.warn("[{}][{}][{}][{}] Decryption failed. Consuming encrypted message since config is set to"
                                 + " consume.",
                         topic, subscription, consumerName, messageId);
                 return payload.retain();
-            case DISCARD:
+            case DISCARD://CryptoFailureAction配置为丢弃，如果解密失败，（意味着不会给上层应用），系统将自动确认，跳过这个消息
                 log.warn("[{}][{}][{}][{}] Discarding message since decryption failed and config is set to discard",
                         topic, subscription, consumerName, messageId);
                 discardMessage(messageId, currentCnx, ValidationError.DecryptionError);
                 return null;
-            case FAIL:
+            case FAIL://CryptoFailureAction配置为失败选项，不能解密消息，消息投递失败。
                 MessageId m = new MessageIdImpl(messageId.getLedgerId(), messageId.getEntryId(), partitionIndex);
                 log.error(
                         "[{}][{}][{}][{}] Message delivery failed since unable to decrypt incoming message",
@@ -1711,21 +1891,27 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
 
     private ByteBuf uncompressPayloadIfNeeded(MessageIdData messageId, MessageMetadata msgMetadata, ByteBuf payload,
             ClientCnx currentCnx, boolean checkMaxMessageSize) {
+        // TODO: 11/6/23 获取压缩类型
         CompressionType compressionType = msgMetadata.getCompression();
+        // TODO: 11/6/23 根据压缩类型，生成对应的压缩器实例
         CompressionCodec codec = CompressionCodecProvider.getCompressionCodec(compressionType);
         int uncompressedSize = msgMetadata.getUncompressedSize();
         int payloadSize = payload.readableBytes();
+        // TODO: 11/6/23 如果超过了最大的传输大小 5MB， 则报错
         if (checkMaxMessageSize && payloadSize > ClientCnx.getMaxMessageSize()) {
             // payload size is itself corrupted since it cannot be bigger than the MaxMessageSize
             log.error("[{}][{}] Got corrupted payload message size {} at {}", topic, subscription, payloadSize,
                     messageId);
+            // TODO: 11/6/23 丢弃此消息，并尝试通知 broker 推送消息
             discardCorruptedMessage(messageId, currentCnx, ValidationError.UncompressedSizeCorruption);
             return null;
         }
         try {
+            // TODO: 11/6/23 对message进行解压缩
             ByteBuf uncompressedPayload = codec.decode(payload, uncompressedSize);
             return uncompressedPayload;
         } catch (IOException e) {
+            // TODO: 11/6/23 解压缩报错
             log.error("[{}][{}] Failed to decompress message with {} at {}: {}", topic, subscription, compressionType,
                     messageId, e.getMessage(), e);
             discardCorruptedMessage(messageId, currentCnx, ValidationError.DecompressionError);
@@ -1733,11 +1919,16 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
         }
     }
 
+    // TODO: 11/6/23 验证校验和
     private boolean verifyChecksum(ByteBuf headersAndPayload, MessageIdData messageId) {
 
+        // TODO: 11/6/23 判定是否有校验和
         if (hasChecksum(headersAndPayload)) {
+            // TODO: 11/6/23 获取原始校验和
             int checksum = Commands.readChecksum(headersAndPayload);
+            // TODO: 11/6/23 重新计算校验和
             int computedChecksum = Crc32cIntChecksum.computeChecksum(headersAndPayload);
+            // TODO: 11/6/23 如果不匹配，则校验不通过
             if (checksum != computedChecksum) {
                 log.error(
                         "[{}][{}] Checksum mismatch for message at {}:{}. Received checksum: 0x{},"
@@ -1764,16 +1955,20 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
 
     private void discardCorruptedMessage(MessageIdData messageId, ClientCnx currentCnx,
             ValidationError validationError) {
+        // TODO: 11/6/23 消息校验失败，则丢弃这个消息，并通知 broker 重发
         log.error("[{}][{}] Discarding corrupted message at {}:{}", topic, subscription, messageId.getLedgerId(),
                 messageId.getEntryId());
         discardMessage(messageId, currentCnx, validationError);
     }
 
     private void discardMessage(MessageIdData messageId, ClientCnx currentCnx, ValidationError validationError) {
+        // TODO: 11/6/23 消息校验失败，则丢弃这个消息，并通知 broker 重发
         ByteBuf cmd = Commands.newAck(consumerId, messageId.getLedgerId(), messageId.getEntryId(), null,
                 AckType.Individual, validationError, Collections.emptyMap(), -1);
         currentCnx.ctx().writeAndFlush(cmd, currentCnx.ctx().voidPromise());
+        // TODO: 11/6/23  增加 permit，通知broker重发
         increaseAvailablePermits(currentCnx);
+        // TODO: 11/6/23 增加接收失败数目
         stats.incrementNumReceiveFailed();
     }
 
@@ -1866,6 +2061,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
         return messagesNumber;
     }
 
+    // TODO: 11/6/23 通知 broker 重新投递消息：主要两件事 处理过期消息，处理死信消息
     @Override
     public void redeliverUnacknowledgedMessages(Set<MessageId> messageIds) {
         if (messageIds.isEmpty()) {
@@ -1876,20 +2072,25 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
 
         if (conf.getSubscriptionType() != SubscriptionType.Shared
                 && conf.getSubscriptionType() != SubscriptionType.Key_Shared) {
+            // TODO: 11/6/23 如果订阅类型不是共享类型，则不重发单个消息
             // We cannot redeliver single messages if subscription type is not Shared
             redeliverUnacknowledgedMessages();
             return;
         }
         ClientCnx cnx = cnx();
+        // TODO: 11/6/23 判定是否已连接和版本是否支持 
         if (isConnected() && cnx.getRemoteEndpointProtocolVersion() >= ProtocolVersion.v2.getValue()) {
+            // TODO: 11/6/23 从 incomingMessages 中移除过期的msg
             int messagesFromQueue = removeExpiredMessagesFromQueue(messageIds);
             Iterable<List<MessageIdImpl>> batches = Iterables.partition(
                 messageIds.stream()
                     .map(messageId -> (MessageIdImpl) messageId)
-                    .collect(Collectors.toSet()), MAX_REDELIVER_UNACKNOWLEDGED);
+                    .collect(Collectors.toSet()), MAX_REDELIVER_UNACKNOWLEDGED); //限制当前次处理的未确认消息数
             batches.forEach(ids -> {
+                // TODO: 11/6/23 尝试把有一些msg发送到死信topic里面
                 getRedeliveryMessageIdData(ids).thenAccept(messageIdData -> {
                     if (!messageIdData.isEmpty()) {
+                        // TODO: 11/6/23  这里就是发命令通知 broker 重发本次未确认消息
                         ByteBuf cmd = Commands.newRedeliverUnacknowledgedMessages(consumerId, messageIdData);
                         cnx.ctx().writeAndFlush(cmd, cnx.ctx().voidPromise());
                     }
@@ -1922,6 +2123,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             return CompletableFuture.completedFuture(Collections.emptyList());
         }
         List<CompletableFuture<MessageIdData>> futures = messageIds.stream().map(messageId -> {
+            // TODO: 11/6/23 把消息发到死信队列 
             CompletableFuture<Boolean> future = processPossibleToDLQ(messageId);
             return future.thenApply(sendToDLQ -> {
                 if (!sendToDLQ) {
@@ -1933,34 +2135,43 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
                 return null;
             });
         }).collect(Collectors.toList());
+        // TODO: 11/6/23 把发送到死信topic失败的msg移除，成功的发送到死信topic的msg，就不需要从broker端从新发送过来。
         return FutureUtil.waitForAll(futures).thenApply(v ->
                 futures.stream().map(CompletableFuture::join).filter(Objects::nonNull).collect(Collectors.toList()));
     }
 
     private CompletableFuture<Boolean> processPossibleToDLQ(MessageIdImpl messageId) {
         List<MessageImpl<T>> deadLetterMessages = null;
+        // TODO: 11/6/23  死信消息容器 不为null
         if (possibleSendToDeadLetterTopicMessages != null) {
             if (messageId instanceof BatchMessageIdImpl) {
                 messageId = new MessageIdImpl(messageId.getLedgerId(), messageId.getEntryId(),
                         getPartitionIndex());
             }
+            // TODO: 11/6/23 从死信消息容器 中获取 对应的消息 
             deadLetterMessages = possibleSendToDeadLetterTopicMessages.get(messageId);
         }
         CompletableFuture<Boolean> result = new CompletableFuture<>();
+        // TODO: 11/6/23 在死信消息容器 中找到消息 
         if (deadLetterMessages != null) {
+            // TODO: 11/6/23 初始化producer
             initDeadLetterProducerIfNeeded();
             List<MessageImpl<T>> finalDeadLetterMessages = deadLetterMessages;
             MessageIdImpl finalMessageId = messageId;
             deadLetterProducer.thenAcceptAsync(producerDLQ -> {
                 for (MessageImpl<T> message : finalDeadLetterMessages) {
+                    // TODO: 11/6/23 msgId
                     String originMessageIdStr = getOriginMessageIdStr(message);
+                    // TODO: 11/6/23 topic name
                     String originTopicNameStr = getOriginTopicNameStr(message);
                     producerDLQ.newMessage(Schema.AUTO_PRODUCE_BYTES(message.getReaderSchema().get()))
                             .value(message.getData())
                             .properties(getPropertiesMap(message, originMessageIdStr, originTopicNameStr))
-                            .sendAsync()
+                            .sendAsync()// 发送数据到死信topic
                             .thenAccept(messageIdInDLQ -> {
+                                // TODO: 11/6/23 发送成功，从 死信消息容器 中移除 msgID
                                 possibleSendToDeadLetterTopicMessages.remove(finalMessageId);
+                                // TODO: 11/6/23 向broker端发送ACK，即该消息不会再次发送到客户端
                                 acknowledgeAsync(finalMessageId).whenComplete((v, ex) -> {
                                     if (ex != null) {
                                         log.warn("[{}] [{}] [{}] Failed to acknowledge the message {} of the original"
@@ -1993,6 +2204,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
         if (deadLetterProducer == null) {
             createProducerLock.writeLock().lock();
             try {
+                // TODO: 11/6/23 初始化死信topic的producer，前面加锁，避免多线程同时创建多个producer
                 if (deadLetterProducer == null) {
                     deadLetterProducer =
                             ((ProducerBuilderImpl<byte[]>) client.newProducer(Schema.AUTO_PRODUCE_BYTES(schema)))
@@ -2512,6 +2724,8 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
     }
 
     void grabCnx() {
+        // TODO: 11/2/23 调用 connectionHandler 里面的grabCnx方法，和broker建立连接,
+        //  这里和producer侧于broker建立连接相同
         this.connectionHandler.grabCnx();
     }
 
@@ -2560,14 +2774,17 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
         ChunkedMessageCtx chunkedMsgCtx = null;
         String firstPendingMsgUuid = null;
         while (chunkedMsgCtx == null && !pendingChunkedMessageUuidQueue.isEmpty()) {
+            // TODO: 11/6/23 获取并移除头部
             // remove oldest pending chunked-message group and free memory
             firstPendingMsgUuid = pendingChunkedMessageUuidQueue.poll();
             chunkedMsgCtx = StringUtils.isNotBlank(firstPendingMsgUuid) ? chunkedMessagesMap.get(firstPendingMsgUuid)
                     : null;
         }
+        // TODO: 11/6/23 移除头部消息块 
         removeChunkMessage(firstPendingMsgUuid, chunkedMsgCtx, this.autoAckOldestChunkedMessageOnQueueFull);
     }
 
+    // TODO: 11/6/23 移除过期没有完成从批量消息
     protected void removeExpireIncompleteChunkedMessages() {
         if (expireTimeOfIncompleteChunkedMessageMillis <= 0) {
             return;
@@ -2578,6 +2795,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
             chunkedMsgCtx = StringUtils.isNotBlank(messageUUID) ? chunkedMessagesMap.get(messageUUID) : null;
             if (chunkedMsgCtx != null && System
                     .currentTimeMillis() > (chunkedMsgCtx.receivedTime + expireTimeOfIncompleteChunkedMessageMillis)) {
+                // TODO: 11/6/23  从 pendingChunkedMessageUuidQueue里面移除过期的消息UUID
                 pendingChunkedMessageUuidQueue.remove(messageUUID);
                 removeChunkMessage(messageUUID, chunkedMsgCtx, true);
             } else {
@@ -2590,6 +2808,7 @@ public class ConsumerImpl<T> extends ConsumerBase<T> implements ConnectionHandle
         if (chunkedMsgCtx == null) {
             return;
         }
+        // TODO: 11/6/23 移除 chunkedMessagesMap 里面的msgUUID
         // clean up pending chuncked-Message
         chunkedMessagesMap.remove(msgUUID);
         if (chunkedMsgCtx.chunkedMessageIds != null) {

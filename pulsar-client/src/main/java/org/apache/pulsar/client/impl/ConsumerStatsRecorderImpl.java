@@ -171,7 +171,9 @@ public class ConsumerStatsRecorderImpl implements ConsumerStatsRecorder {
     @Override
     public void updateNumMsgsReceived(Message<?> message) {
         if (message != null) {
+            // TODO: 11/3/23 消息数+1
             numMsgsReceived.increment();
+            // TODO: 11/3/23 大小 + msgSize
             numBytesReceived.add(message.size());
         }
     }

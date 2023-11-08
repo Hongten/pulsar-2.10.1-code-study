@@ -77,6 +77,7 @@ public class ConsumerConfigurationData<T> implements Serializable, Cloneable {
     @JsonIgnore
     private RedeliveryBackoff ackTimeoutRedeliveryBackoff;
 
+    // TODO: 11/2/23 默认为1000 的队列大小
     private int receiverQueueSize = 1000;
 
     private long acknowledgementsGroupTimeMicros = TimeUnit.MILLISECONDS.toMicros(100);
@@ -128,6 +129,7 @@ public class ConsumerConfigurationData<T> implements Serializable, Cloneable {
 
     private boolean readCompacted = false;
 
+    // TODO: 11/2/23 默认情况下，消费是从topic末端消费
     private SubscriptionInitialPosition subscriptionInitialPosition = SubscriptionInitialPosition.Latest;
 
     private int patternAutoDiscoveryPeriod = 60;

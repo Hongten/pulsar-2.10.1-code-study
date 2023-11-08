@@ -116,6 +116,7 @@ public class Commands {
     public static final int MESSAGE_SIZE_FRAME_PADDING = 10 * 1024;
     public static final int INVALID_MAX_MESSAGE_SIZE = -1;
 
+    // TODO: 11/3/23 默认的consumerEpoch值
     // this present broker version don't have consumerEpoch feature,
     // so client don't need to think about consumerEpoch feature
     public static final long DEFAULT_CONSUMER_EPOCH = -1L;
@@ -433,6 +434,7 @@ public class Commands {
 
     public static MessageMetadata parseMessageMetadata(ByteBuf buffer) {
         MessageMetadata md = LOCAL_MESSAGE_METADATA.get();
+        // TODO: 11/6/23 解析消息
         parseMessageMetadata(buffer, md);
         return md;
     }
@@ -574,6 +576,7 @@ public class Commands {
                InitialPosition subscriptionInitialPosition, long startMessageRollbackDurationInSec,
                SchemaInfo schemaInfo, boolean createTopicIfDoesNotExist, KeySharedPolicy keySharedPolicy,
                Map<String, String> subscriptionProperties, long consumerEpoch) {
+        // TODO: 11/2/23 创建新订阅命令
         BaseCommand cmd = localCmd(Type.SUBSCRIBE);
         CommandSubscribe subscribe = cmd.setSubscribe()
                 .setTopic(topic)
@@ -582,14 +585,15 @@ public class Commands {
                 .setConsumerId(consumerId)
                 .setConsumerName(consumerName)
                 .setRequestId(requestId)
-                .setPriorityLevel(priorityLevel)
+                .setPriorityLevel(priorityLevel) // 优先级
                 .setDurable(isDurable)
                 .setReadCompacted(readCompacted)
                 .setInitialPosition(subscriptionInitialPosition)
                 .setReplicateSubscriptionState(isReplicated)
-                .setForceTopicCreation(createTopicIfDoesNotExist)
+                .setForceTopicCreation(createTopicIfDoesNotExist) // topic不存在是是否需要备创建
                 .setConsumerEpoch(consumerEpoch);
 
+        // TODO: 11/2/23 消费配置信息
         if (subscriptionProperties != null && !subscriptionProperties.isEmpty()) {
             List<KeyValue> keyValues = new ArrayList<>();
             subscriptionProperties.forEach((key, value) -> {
@@ -1050,10 +1054,11 @@ public class Commands {
     }
 
     public static ByteBuf newFlow(long consumerId, int messagePermits) {
+        // TODO: 11/3/23 流控命令
         BaseCommand cmd = localCmd(Type.FLOW);
         cmd.setFlow()
-                .setConsumerId(consumerId)
-                .setMessagePermits(messagePermits);
+                .setConsumerId(consumerId) // 消费者Id
+                .setMessagePermits(messagePermits); // 拉取多少数据
         return serializeWithSize(cmd);
     }
 
@@ -1066,6 +1071,7 @@ public class Commands {
     }
 
     public static ByteBuf newRedeliverUnacknowledgedMessages(long consumerId, List<MessageIdData> messageIds) {
+        // TODO: 11/6/23 这里就是发命令通知 broker 重发本次未确认消息
         BaseCommand cmd = localCmd(Type.REDELIVER_UNACKNOWLEDGED_MESSAGES);
         CommandRedeliverUnacknowledgedMessages req = cmd.setRedeliverUnacknowledgedMessages()
                 .setConsumerId(consumerId);

@@ -30,8 +30,11 @@ import org.apache.pulsar.common.api.proto.MessageIdData;
 import org.apache.pulsar.common.naming.TopicName;
 
 public class MessageIdImpl implements MessageId {
+    // TODO: 11/6/23 ledger id
     protected final long ledgerId;
+    // TODO: 11/6/23 entry id
     protected final long entryId;
+    // TODO: 11/6/23 partition id
     protected final int partitionIndex;
 
     // Private constructor used only for json deserialization

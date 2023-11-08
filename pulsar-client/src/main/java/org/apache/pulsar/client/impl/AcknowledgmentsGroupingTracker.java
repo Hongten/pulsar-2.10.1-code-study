@@ -31,6 +31,9 @@ public interface AcknowledgmentsGroupingTracker extends AutoCloseable {
 
     boolean isDuplicate(MessageId messageId);
 
+    // TODO: 11/6/23  这里对 non-persistent和persistent topic进行了实现
+    // TODO: 11/6/23 NonPersistentAcknowledgmentGroupingTracker - 不做任何处理
+    // TODO: 11/6/23 PersistentAcknowledgmentsGroupingTracker - 对persistent topic进行具体实现
     CompletableFuture<Void> addAcknowledgment(MessageIdImpl msgId, AckType ackType, Map<String, Long> properties);
 
     CompletableFuture<Void> addListAcknowledgment(List<MessageId> messageIds, AckType ackType,

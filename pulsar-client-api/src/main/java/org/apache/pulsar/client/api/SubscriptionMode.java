@@ -22,6 +22,7 @@ import org.apache.pulsar.common.classification.InterfaceAudience;
 import org.apache.pulsar.common.classification.InterfaceStability;
 
 /**
+ * 订阅模式：
  * Types of subscription mode supported by Pulsar.
  */
 @InterfaceAudience.Public
@@ -29,8 +30,8 @@ import org.apache.pulsar.common.classification.InterfaceStability;
 public enum SubscriptionMode {
     // Make the subscription to be backed by a durable cursor that will retain messages and persist the current
     // position
-    Durable,
+    Durable, // 持久化订阅
 
     // Lightweight subscription mode that doesn't have a durable cursor associated
-    NonDurable
+    NonDurable // 非持久化订阅
 }
